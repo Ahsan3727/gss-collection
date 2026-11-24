@@ -665,47 +665,43 @@ export async function seed() {
   });
 
   console.log('[Seed] Seeding static pages...');
-  const pages = [
-    {
-      slug: 'size-guide',
-      title: 'Ring Sizing Guide',
-      body: 'Our rings are crafted in standard US sizes (typically sizes 5 through 12). If you do not know your exact ring size, you can measure the inside diameter of an existing ring in millimetres or wrap a strip of paper snug around your knuckle and measure the circumference. Size 5 is 15.7 mm diameter, Size 6 is 16.5 mm, Size 7 is 17.3 mm, Size 8 is 18.1 mm, Size 9 is 18.9 mm, Size 10 is 19.8 mm, Size 11 is 20.6 mm, and Size 12 is 21.4 mm. We also provide complementary ring resizing advice via WhatsApp.'
-    },
-    {
-      slug: 'contact',
-      title: 'Contact & Atelier Inquiries',
-      body: 'Have questions regarding custom ring sizing, gemstone selection, or special orders? Our master jeweler workshop is available Monday to Saturday, 10:00 AM to 7:00 PM PKT.
-
-WhatsApp & Helpline: +92 300 1234567
-Email: info@gsscollection.com
-Studio: GSS Collection Fine Jewellery, Lahore, Pakistan.'
-    },
-    {
-      slug: 'about-us',
-      title: 'About GSS Collection',
-      body: 'GSS Collection is dedicated to timeless handcrafted jewellery made with high-purity 925 sterling silver and natural, untreated earth-mined gemstones. Unlike mass-manufactured jewellery, every setting is cast and finished by skilled master jewelers, ensuring heirloom quality and lasting durability.'
-    },
-    {
-      slug: 'care-guide',
-      title: 'Jewellery & Gemstone Care Guide',
-      body: 'To keep your silver jewellery glowing, store pieces in a dry pouch away from direct humidity. For cleaning, use lukewarm water and mild dish soap with a soft-bristled brush. Avoid exposing softer or porous gemstones like Turquoise or Emerald to harsh perfumes, chlorine, chemicals, or ultrasonic cleaners.'
-    },
-    {
-      slug: 'shipping-returns',
-      title: 'Shipping & Returns Policy',
-      body: 'We deliver nationwide across Pakistan via trusted couriers (TCS / Leopard / Trax). Standard delivery takes 3 to 5 business days, with free shipping on orders above Rs. 15,000. Cash on delivery (COD) and direct bank transfer are accepted. If you receive a damaged piece or the wrong size, contact us within 7 days for a hassle-free exchange.'
-    },
-    {
-      slug: 'privacy-policy',
-      title: 'Privacy Policy',
-      body: 'At GSS Collection, your privacy is strictly protected. We only collect essential customer contact and shipping details to fulfil your orders and communicate delivery status. We do not sell or share customer personal information with external marketers.'
-    },
-    {
-      slug: 'terms-of-service',
-      title: 'Terms of Service',
-      body: 'By placing an order on GSS Collection, you agree to our terms of sale. All items are described accurately with genuine hallmark standards. Orders placed via Cash on Delivery are confirmed via phone or WhatsApp prior to dispatch.'
-    }
-  ];
+  const pages: any[] = [
+  {
+    "slug": "size-guide",
+    "title": "Ring Sizing Guide",
+    "body": "Our rings are crafted in standard US sizes (typically sizes 5 through 12). If you do not know your exact ring size, you can measure the inside diameter of an existing ring in millimetres or wrap a strip of paper snug around your knuckle and measure the circumference. Size 5 is 15.7 mm diameter, Size 6 is 16.5 mm, Size 7 is 17.3 mm, Size 8 is 18.1 mm, Size 9 is 18.9 mm, Size 10 is 19.8 mm, Size 11 is 20.6 mm, and Size 12 is 21.4 mm. We also provide complementary ring resizing advice via WhatsApp."
+  },
+  {
+    "slug": "contact",
+    "title": "Contact & Atelier Inquiries",
+    "body": "Have questions regarding custom ring sizing, gemstone selection, or special orders? Our master jeweler workshop is available Monday to Saturday, 10:00 AM to 7:00 PM PKT.\n\nWhatsApp & Helpline: +92 300 1234567\nEmail: info@gsscollection.com\nStudio: GSS Collection Fine Jewellery, Lahore, Pakistan."
+  },
+  {
+    "slug": "about-us",
+    "title": "About GSS Collection",
+    "body": "GSS Collection is dedicated to timeless handcrafted jewellery made with high-purity 925 sterling silver and natural, untreated earth-mined gemstones. Unlike mass-manufactured jewellery, every setting is cast and finished by skilled master jewelers, ensuring heirloom quality and lasting durability."
+  },
+  {
+    "slug": "care-guide",
+    "title": "Jewellery & Gemstone Care Guide",
+    "body": "To keep your silver jewellery glowing, store pieces in a dry pouch away from direct humidity. For cleaning, use lukewarm water and mild dish soap with a soft-bristled brush. Avoid exposing softer or porous gemstones like Turquoise or Emerald to harsh perfumes, chlorine, chemicals, or ultrasonic cleaners."
+  },
+  {
+    "slug": "shipping-returns",
+    "title": "Shipping & Returns Policy",
+    "body": "We deliver nationwide across Pakistan via trusted couriers (TCS / Leopard / Trax). Standard delivery takes 3 to 5 business days, with free shipping on orders above Rs. 15,000. Cash on delivery (COD) and direct bank transfer are accepted. If you receive a damaged piece or the wrong size, contact us within 7 days for a hassle-free exchange."
+  },
+  {
+    "slug": "privacy-policy",
+    "title": "Privacy Policy",
+    "body": "At GSS Collection, your privacy is strictly protected. We only collect essential customer contact and shipping details to fulfil your orders and communicate delivery status. We do not sell or share customer personal information with external marketers."
+  },
+  {
+    "slug": "terms-of-service",
+    "title": "Terms of Service",
+    "body": "By placing an order on GSS Collection, you agree to our terms of sale. All items are described accurately with genuine hallmark standards. Orders placed via Cash on Delivery are confirmed via phone or WhatsApp prior to dispatch."
+  }
+];
 
   for (const p of pages) {
     await Page.create(p);

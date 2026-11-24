@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 
-// shortcut: single connection cache in global scope for Next.js hot-reloading & serverless
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/gss-collection';
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI ||
+  'mongodb://localhost:27017/gss-collection';
 
 interface MongooseCache {
   conn: typeof mongoose | null;

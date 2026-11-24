@@ -193,7 +193,7 @@ export async function seed() {
   });
 
   console.log('[Seed] Seeding static pages...');
-  const pages = [
+  const pages: any[] = ${JSON.stringify([
     {
       slug: 'size-guide',
       title: 'Ring Sizing Guide',
@@ -229,7 +229,7 @@ export async function seed() {
       title: 'Terms of Service',
       body: 'By placing an order on GSS Collection, you agree to our terms of sale. All items are described accurately with genuine hallmark standards. Orders placed via Cash on Delivery are confirmed via phone or WhatsApp prior to dispatch.'
     }
-  ];
+  ], null, 2)};
 
   for (const p of pages) {
     await Page.create(p);
