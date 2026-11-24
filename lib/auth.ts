@@ -10,7 +10,7 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
     maxAge: 8 * 60 * 60, // 8 hours
   },
-  secret: process.env.NEXTAUTH_SECRET || 'gss_collection_secret_key_super_secure_2026_dev',
+  secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: '/admin/login',
     error: '/admin/login',
@@ -33,10 +33,11 @@ export const authOptions: NextAuthOptions = {
         // Check if AdminUser exists
         let user = await AdminUser.findOne({ email });
 
-        // Bootstrap fallback: If no admin user exists in DB at all, allow bootstrap with ENV credentials
+        // First login only: create the owner when the admin collection is empty.
         const totalAdmins = await AdminUser.countDocuments();
-        if (totalAdmins === 0 && email === (process.env.ADMIN_EMAIL || 'admin@gsscollection.com').toLowerCase()) {
-          const expectedPass = process.env.ADMIN_PASSWORD || 'admin123';
+        const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
+        const expectedPass = process.env.ADMIN_PASSWORD;
+        if (totalAdmins === 0 && adminEmail && expectedPass && email === adminEmail) {
           if (credentials.password === expectedPass) {
             const hash = await bcrypt.hash(expectedPass, 12);
             user = await AdminUser.create({

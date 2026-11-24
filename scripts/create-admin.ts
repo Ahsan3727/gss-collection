@@ -3,9 +3,14 @@ import { AdminUser } from '../lib/models/AdminUser';
 import bcrypt from 'bcryptjs';
 
 async function main() {
-  const email = process.env.ADMIN_EMAIL || 'admin@gsscollection.com';
-  const password = process.env.ADMIN_PASSWORD || 'admin123';
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
   const name = 'Store Owner';
+
+  if (!email || !password) {
+    console.error('[Create-Admin] ADMIN_EMAIL and ADMIN_PASSWORD are required.');
+    process.exit(1);
+  }
 
   console.log(`[Create-Admin] Initializing admin account: ${email}...`);
   await connectDB();

@@ -12,10 +12,20 @@ export async function middleware(req: NextRequest) {
 
   // Guard admin routes and admin API endpoints
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET || 'gss_collection_secret_key_super_secure_2026_dev',
-    });
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) {
+      if (pathname.startsWith('/api/admin')) {
+        return NextResponse.json(
+          { error: 'Unauthorized: Admin authentication required' },
+          { status: 401 }
+        );
+      }
+      const loginUrl = new URL('/admin/login', req.url);
+      loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const token = await getToken({ req, secret });
 
     if (!token) {
       if (pathname.startsWith('/api/admin')) {

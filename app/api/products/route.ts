@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models/Product';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
+import { buildProductDocument, parseProductWrite } from '@/lib/product-write';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,15 +65,31 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    const parsed = parseProductWrite(body);
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
     await connectDB();
 
-    const newProduct = await Product.create(body);
+    const existing = await Product.findOne({
+      $or: [{ handle: parsed.data.handle }, { id: parsed.data.handle }],
+    }).lean();
+    if (existing) {
+      return NextResponse.json({ error: 'A product with this handle already exists.' }, { status: 409 });
+    }
+
+    const document = buildProductDocument(parsed.data);
+    const newProduct = await Product.create(document);
     await logAdminAction(authCheck.user.email, 'product_create', 'Product', newProduct.id, {
       title: newProduct.title,
       handle: newProduct.handle,
     });
 
-    return NextResponse.json({ success: true, product: newProduct }, { status: 201 });
+    return NextResponse.json(
+      { success: true, product: JSON.parse(JSON.stringify(newProduct)) },
+      { status: 201 }
+    );
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Error creating product' }, { status: 400 });
   }

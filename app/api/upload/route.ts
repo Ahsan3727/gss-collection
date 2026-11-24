@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { requireAdminApi } from '@/lib/admin-auth';
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'qqqoqjok',
-  api_key: process.env.CLOUDINARY_API_KEY || '784954882844857',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'w8L2i3O43t1vOretbv-papF1Qw8',
-  secure: true,
-});
+import { getEnv } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +9,43 @@ export async function POST(req: Request) {
   const auth = await requireAdminApi();
   if ('errorResponse' in auth) return auth.errorResponse;
 
+  let cloudName = '';
+  let apiKey = '';
+  let apiSecret = '';
+  try {
+    const env = getEnv();
+    cloudName = env.CLOUDINARY_CLOUD_NAME;
+    apiKey = env.CLOUDINARY_API_KEY;
+    apiSecret = env.CLOUDINARY_API_SECRET;
+  } catch (err: any) {
+    console.error('[Cloudinary Upload Error]: configuration missing');
+    return NextResponse.json(
+      { error: err?.message || 'Image storage is not configured' },
+      { status: 500 }
+    );
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true,
+  });
+
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    }
+
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json({ error: 'Only image files can be uploaded' }, { status: 400 });
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Image must be 8MB or smaller' }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -48,7 +73,7 @@ export async function POST(req: Request) {
       publicId: result.public_id,
     });
   } catch (err: any) {
-    console.error('[Cloudinary Upload Error]:', err);
-    return NextResponse.json({ error: err.message || 'Image upload failed' }, { status: 500 });
+    console.error('[Cloudinary Upload Error]:', err?.message || err);
+    return NextResponse.json({ error: 'Image upload failed' }, { status: 500 });
   }
 }

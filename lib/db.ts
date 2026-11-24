@@ -1,9 +1,5 @@
 import mongoose from 'mongoose';
-
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  process.env.MONGO_URI ||
-  'mongodb://localhost:27017/gss-collection';
+import { getEnv } from '@/lib/env';
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -22,6 +18,8 @@ if (!cached) {
 
 export async function connectDB() {
   if (cached!.conn) return cached!.conn;
+
+  const { MONGODB_URI } = getEnv();
 
   if (!cached!.promise) {
     cached!.promise = mongoose.connect(MONGODB_URI, {
