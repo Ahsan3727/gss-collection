@@ -13,12 +13,23 @@ export interface ProductCardProps {
     stones: string[];
     photos?: string[];
     status?: string;
+    cat?: string;
+    kind?: string;
   };
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const primaryStone = product.stones[0] || 'garnet';
-  const hasPhoto = product.photos && product.photos.length > 0 && product.photos[0].startsWith('http');
+  const primaryStone = product.stones?.[0] || 'garnet';
+  const photoUrl = product.photos?.[0];
+  const hasPhoto = Boolean(photoUrl && photoUrl.trim().length > 0);
+
+  // Category-aware label
+  let categoryLabel = '925 Sterling Silver';
+  if (product.kind === 'stone' || product.cat === 'gems') {
+    categoryLabel = 'Natural Gemstone · Untreated';
+  } else if (product.kind === 'bracelet') {
+    categoryLabel = 'Natural Stone Bracelet';
+  }
 
   return (
     <article className="group flex flex-col">
@@ -28,7 +39,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       >
         {hasPhoto ? (
           <Image
-            src={product.photos![0]}
+            src={photoUrl!}
             alt={product.title}
             fill
             sizes="(max-width: 768px) 50vw, 25vw"
@@ -64,7 +75,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         <p className="text-[11px] uppercase tracking-wider text-ink-2 mt-1">
-          925 Sterling Silver
+          {categoryLabel}
         </p>
       </div>
     </article>

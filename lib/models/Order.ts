@@ -2,12 +2,14 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IOrderItem {
   productId: string;
+  sku?: string;
   handle: string;
   title: string;
   stone: string;
   size: string;
   qty: number;
   price: number;
+  photo?: string;
 }
 
 export interface IOrder extends Document {
@@ -34,6 +36,8 @@ export interface IOrder extends Document {
     country: string;
   };
   note?: string;
+  idempotencyKey?: string;
+  accessToken?: string;
   timeline: { at: Date; text: string }[];
   adminNotes: { at: Date; text: string }[];
   restocked: boolean;
@@ -47,12 +51,14 @@ const OrderSchema = new Schema<IOrder>(
     items: [
       {
         productId: { type: String, required: true },
+        sku: { type: String },
         handle: { type: String, required: true },
         title: { type: String, required: true },
         stone: { type: String, required: true },
         size: { type: String, required: true },
         qty: { type: Number, required: true, min: 1 },
         price: { type: Number, required: true },
+        photo: { type: String },
       },
     ],
     subtotal: { type: Number, required: true },
@@ -74,8 +80,8 @@ const OrderSchema = new Schema<IOrder>(
       number: { type: String },
     },
     contact: {
-      email: { type: String, required: true },
-      phone: { type: String, required: true },
+      email: { type: String, required: true, index: true },
+      phone: { type: String, required: true, index: true },
     },
     address: {
       name: { type: String, required: true },
@@ -87,6 +93,8 @@ const OrderSchema = new Schema<IOrder>(
       country: { type: String, required: true, default: 'PK' },
     },
     note: { type: String },
+    idempotencyKey: { type: String, unique: true, sparse: true },
+    accessToken: { type: String, index: true },
     timeline: [
       {
         at: { type: Date, default: Date.now },
@@ -103,6 +111,8 @@ const OrderSchema = new Schema<IOrder>(
   },
   { timestamps: true }
 );
+
+OrderSchema.index({ createdAt: -1 });
 
 export const Order: Model<IOrder> =
   mongoose.models.Order || mongoose.model<IOrder>('Order', OrderSchema);

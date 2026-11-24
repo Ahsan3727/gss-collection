@@ -3,6 +3,8 @@ import './globals.css';
 import Header from '@/components/store/Header';
 import Footer from '@/components/store/Footer';
 import AnnouncementBar from '@/components/store/AnnouncementBar';
+import { CartProvider } from '@/lib/cart-context';
+import CartDrawer from '@/components/store/CartDrawer';
 
 export const metadata: Metadata = {
   title: 'GSS Collection | Silver Rings & Natural Gemstones',
@@ -25,10 +27,13 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col bg-white text-ink antialiased">
-        <AnnouncementBar />
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <CartProvider>
+          <AnnouncementBar />
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <CartDrawer />
+        </CartProvider>
       </body>
     </html>
   );

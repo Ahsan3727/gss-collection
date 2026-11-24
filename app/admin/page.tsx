@@ -29,10 +29,11 @@ async function getDashboardStats() {
       totalRevenue,
     };
   } catch (err) {
+    console.error('[Admin] Error fetching dashboard stats:', err);
     return {
       orders: [],
       totalOrders: 0,
-      totalProducts: 14,
+      totalProducts: 0,
       totalMessages: 0,
       totalRevenue: 0,
     };

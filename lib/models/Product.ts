@@ -1,5 +1,20 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export interface IProductVariant {
+  sku: string;
+  stone: string;
+  size: string;
+  price: number;
+  compareAt?: number;
+  stock: number;
+}
+
+export interface IProductPhoto {
+  url: string;
+  publicId?: string;
+  alt?: string;
+}
+
 export interface IProduct extends Document {
   id: string;
   handle: string;
@@ -8,15 +23,18 @@ export interface IProduct extends Document {
   family: string;
   band: string;
   cat: 'ladies' | 'gents' | 'gems';
+  kind: 'ring' | 'bracelet' | 'stone';
   aud: 'women' | 'men' | 'unisex';
   stones: string[];
   base: number;
   stoneDeltas: Map<string, number>;
   compareAt?: number;
   sizes: string[];
+  variants: IProductVariant[];
   inventory: Map<string, number>;
   tags: string[];
   photos: string[];
+  structuredPhotos?: IProductPhoto[];
   desc: string;
   weight?: number;
   width?: number;
@@ -27,6 +45,18 @@ export interface IProduct extends Document {
   updatedAt: Date;
 }
 
+const VariantSchema = new Schema<IProductVariant>(
+  {
+    sku: { type: String, required: true },
+    stone: { type: String, required: true },
+    size: { type: String, required: true },
+    price: { type: Number, required: true },
+    compareAt: { type: Number },
+    stock: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false }
+);
+
 const ProductSchema = new Schema<IProduct>(
   {
     id: { type: String, required: true, unique: true },
@@ -35,16 +65,25 @@ const ProductSchema = new Schema<IProduct>(
     setting: { type: String, required: true },
     family: { type: String, required: true },
     band: { type: String, required: true },
-    cat: { type: String, enum: ['ladies', 'gents', 'gems'], required: true },
+    cat: { type: String, enum: ['ladies', 'gents', 'gems'], required: true, index: true },
+    kind: { type: String, enum: ['ring', 'bracelet', 'stone'], default: 'ring' },
     aud: { type: String, enum: ['women', 'men', 'unisex'], required: true },
     stones: [{ type: String }],
     base: { type: Number, required: true },
     stoneDeltas: { type: Map, of: Number, default: {} },
     compareAt: { type: Number },
     sizes: [{ type: String }],
+    variants: [VariantSchema],
     inventory: { type: Map, of: Number, default: {} },
     tags: [{ type: String }],
     photos: [{ type: String }],
+    structuredPhotos: [
+      {
+        url: { type: String },
+        publicId: { type: String },
+        alt: { type: String },
+      },
+    ],
     desc: { type: String, default: '' },
     weight: { type: Number },
     width: { type: Number },
@@ -56,6 +95,7 @@ const ProductSchema = new Schema<IProduct>(
 );
 
 ProductSchema.index({ title: 'text', desc: 'text', tags: 'text' });
+ProductSchema.index({ 'variants.sku': 1 });
 
 export const Product: Model<IProduct> =
   mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);

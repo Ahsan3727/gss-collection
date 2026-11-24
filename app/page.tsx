@@ -5,53 +5,10 @@ import { Product } from '@/lib/models/Product';
 
 export const dynamic = 'force-dynamic';
 
-const FALLBACK_PRODUCTS = [
-  {
-    handle: 'crimson-halo-ring',
-    title: 'Crimson Halo Ring',
-    setting: 'cluster',
-    base: 9800,
-    compareAt: 11500,
-    stones: ['garnet'],
-    cat: 'ladies',
-  },
-  {
-    handle: 'oval-cabochon-ring',
-    title: 'Oval Cabochon Ring',
-    setting: 'cabochon',
-    base: 8500,
-    stones: ['turquoise'],
-    cat: 'ladies',
-  },
-  {
-    handle: 'classic-solitaire-ring',
-    title: 'Classic Solitaire Ring',
-    setting: 'solitaire',
-    base: 9200,
-    stones: ['emerald'],
-    cat: 'ladies',
-  },
-  {
-    handle: 'heavy-signet-ring',
-    title: 'Gents Heavy Signet Ring',
-    setting: 'signet',
-    base: 12500,
-    stones: ['lapis'],
-    cat: 'gents',
-  },
-];
-
 async function getFeaturedProducts() {
-  try {
-    await connectDB();
-    const products = await Product.find({ status: 'active' }).limit(8).lean();
-    if (products && products.length > 0) {
-      return JSON.parse(JSON.stringify(products));
-    }
-  } catch (err) {
-    console.warn('DB not connected yet, using fallback products');
-  }
-  return FALLBACK_PRODUCTS;
+  await connectDB();
+  const products = await Product.find({ status: 'active' }).limit(8).lean();
+  return JSON.parse(JSON.stringify(products || []));
 }
 
 export default async function HomePage() {

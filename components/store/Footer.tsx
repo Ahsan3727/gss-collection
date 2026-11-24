@@ -10,55 +10,63 @@ export default function Footer() {
               GSS Collection
             </span>
             <p className="text-sm text-neutral-400 leading-relaxed max-w-sm">
-              Handcrafted 925 sterling silver rings, set with genuine untreated gemstones. Made for everyday wear with timeless elegance.
+              Handcrafted 925 sterling silver rings, bracelets, and authentic untreated gemstones. Made for lifetime wear with timeless craftsmanship.
             </p>
           </div>
 
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-ice mb-4">
-              Collections
+              Fine Jewellery
             </h4>
             <ul className="space-y-2.5 text-sm">
+              <li><Link href="/collections/all" className="hover:text-white transition-colors">All Jewellery</Link></li>
               <li><Link href="/collections/ladies" className="hover:text-white transition-colors">Ladies Rings</Link></li>
               <li><Link href="/collections/gents" className="hover:text-white transition-colors">Gents Rings</Link></li>
-              <li><Link href="/collections/gems" className="hover:text-white transition-colors">Natural Stones</Link></li>
-              <li><Link href="/collections/all" className="hover:text-white transition-colors">All Pieces</Link></li>
+              <li><Link href="/collections/gems" className="hover:text-white transition-colors">Natural Untreated Gems</Link></li>
+              <li><Link href="/collections/new-arrivals" className="hover:text-white transition-colors">New Arrivals</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-ice mb-4">
-              Help & Customer Care
+              Help & Policies
             </h4>
             <ul className="space-y-2.5 text-sm">
               <li><Link href="/pages/size-guide" className="hover:text-white transition-colors">Ring Size Guide</Link></li>
-              <li><Link href="/pages/contact" className="hover:text-white transition-colors">Contact & Custom Orders</Link></li>
-              <li><Link href="/track-order" className="hover:text-white transition-colors">Track Your Order</Link></li>
+              <li><Link href="/pages/care-guide" className="hover:text-white transition-colors">Gemstone Care</Link></li>
+              <li><Link href="/pages/shipping-returns" className="hover:text-white transition-colors">Shipping & Exchanges</Link></li>
+              <li><Link href="/pages/contact" className="hover:text-white transition-colors">Contact & Bespoke</Link></li>
+              <li><Link href="/track-order" className="hover:text-white transition-colors">Track Your Delivery</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-ice mb-4">
-              Contact & Studio
+              Studio & Atelier
             </h4>
             <p className="text-sm text-neutral-400 leading-relaxed mb-2">
               Lahore, Pakistan<br />
-              Mon to Sat: 10:00 to 18:00 (PKT)
+              Mon to Sat: 10:00 to 19:00 (PKT)
             </p>
             <p className="text-sm text-neutral-300 font-medium">
-              WhatsApp: +92 300 000 0000
+              WhatsApp: +92 300 1234567
+            </p>
+            <p className="text-xs text-neutral-500 mt-2">
+              info@gsscollection.com
             </p>
           </div>
         </div>
 
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
-          <p>© {new Date().getFullYear()} GSS Collection. Sterling silver 925 guaranteed.</p>
-          <div className="flex gap-4">
+          <p>© {new Date().getFullYear()} GSS Collection. Hallmarked Sterling Silver 925 Guaranteed.</p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/pages/privacy-policy" className="hover:underline">Privacy Policy</Link>
+            <span>·</span>
+            <Link href="/pages/terms-of-service" className="hover:underline">Terms of Service</Link>
+            <span>·</span>
             <span>Cash on Delivery</span>
             <span>·</span>
             <span>Bank Transfer</span>
-            <span>·</span>
-            <Link href="/admin" className="hover:underline">Store Admin</Link>
           </div>
         </div>
       </div>
