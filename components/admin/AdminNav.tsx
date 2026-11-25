@@ -18,6 +18,7 @@ export default function AdminNav() {
     { href: '/admin/customers', label: 'Customers' },
     { href: '/admin/inbox', label: 'Inquiries' },
     { href: '/admin/discounts', label: 'Discounts' },
+    { href: '/admin/pages', label: 'Pages' },
     { href: '/admin/settings', label: 'Settings' },
   ];
 

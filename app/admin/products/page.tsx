@@ -6,6 +6,12 @@ import Image from 'next/image';
 
 export const dynamic = 'force-dynamic';
 
+const STATUS_BADGE: Record<string, string> = {
+  active: 'bg-emerald-100 text-emerald-800',
+  draft: 'bg-amber-100 text-amber-800',
+  archived: 'bg-neutral-200 text-neutral-700',
+};
+
 export default async function AdminProductsPage() {
   await connectDB();
   const products = await Product.find().sort({ createdAt: -1 }).lean();
@@ -21,6 +27,12 @@ export default async function AdminProductsPage() {
             Products ({products.length})
           </h1>
         </div>
+        <Link
+          href="/admin/products/new"
+          className="bg-ink text-white px-5 py-2.5 text-xs uppercase tracking-wider font-semibold hover:bg-neutral-800 transition text-center"
+        >
+          New product
+        </Link>
       </div>
 
       <div className="bg-white border border-line shadow-sm overflow-x-auto">
@@ -34,6 +46,7 @@ export default async function AdminProductsPage() {
               <th className="py-3 px-4 font-semibold">Available Stones</th>
               <th className="py-3 px-4 font-semibold">Variants</th>
               <th className="py-3 px-4 font-semibold">Status</th>
+              <th className="py-3 px-4 font-semibold text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -61,9 +74,21 @@ export default async function AdminProductsPage() {
                   {p.variants?.length || Object.keys(p.inventory || {}).length} variants
                 </td>
                 <td className="py-3 px-4">
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-semibold uppercase px-2 py-0.5 rounded">
+                  <span
+                    className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${
+                      STATUS_BADGE[p.status] || 'bg-neutral-200 text-neutral-700'
+                    }`}
+                  >
                     {p.status}
                   </span>
+                </td>
+                <td className="py-3 px-4 text-right">
+                  <Link
+                    href={`/admin/products/${encodeURIComponent(p.id || p.handle)}`}
+                    className="text-[11px] uppercase tracking-wider font-semibold text-ink underline hover:text-ink-2"
+                  >
+                    Edit
+                  </Link>
                 </td>
               </tr>
             ))}

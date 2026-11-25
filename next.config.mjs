@@ -1,4 +1,4 @@
-const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+const mongoUri = process.env.MONGODB_URI;
 const authSecret = process.env.NEXTAUTH_SECRET || '';
 
 if (process.env.NODE_ENV === 'production') {

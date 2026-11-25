@@ -1,4 +1,7 @@
-// In-memory sliding window rate-limiter with optional Redis fallback
+// In-memory fixed-window rate limiter. There is no Redis or shared store.
+// On Vercel every serverless instance keeps its own counters, so treat this as a
+// light guard against casual abuse, not a hard limit.
+// Note: no route imports this yet. Call rateLimit() from a route to use it.
 const memoryStore = new Map<string, { count: number; expiresAt: number }>();
 
 export interface RateLimitResult {

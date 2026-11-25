@@ -7,6 +7,7 @@ import { Product } from '@/lib/models/Product';
 import { Discount } from '@/lib/models/Discount';
 import { getNextOrderNumber } from '@/lib/models/Counter';
 import { getStoreSettings } from '@/lib/settings';
+import { resolveStockSource, takeStock, rollbackStock, type StockTaken } from '@/lib/stock';
 
 const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -15,7 +16,7 @@ const orderItemSchema = z.object({
   stone: z.string().min(1),
   size: z.string().min(1),
   qty: z.number().int().min(1).max(10),
-  sku: z.string().optional(),
+  // A `sku` sent by the browser is ignored. The server works it out from the stored variant.
 });
 
 const createOrderSchema = z.object({
@@ -40,6 +41,9 @@ const createOrderSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Stock taken so far. If anything fails later, it is put back (see the catch block).
+  const taken: StockTaken[] = [];
+
   try {
     const rawBody = await req.json();
     const parseResult = createOrderSchema.safeParse(rawBody);
@@ -68,10 +72,9 @@ export async function POST(req: Request) {
 
     const settings = await getStoreSettings();
 
-    // 1. Verify products & calculate verified totals
+    // 1. Verify products, work out the price and SKU on the server, and take stock
     let subtotal = 0;
     const verifiedItems = [];
-    const stockDeductions: { productId: string; sku: string; qty: number }[] = [];
 
     for (const item of items) {
       const p = await Product.findOne({
@@ -80,56 +83,44 @@ export async function POST(req: Request) {
       });
 
       if (!p) {
+        await rollbackStock(Product, taken);
         return NextResponse.json({ error: `Product "${item.title || item.productId}" is not available.` }, { status: 400 });
       }
 
       const stone = item.stone;
       const size = item.size;
-      const sku = item.sku || `${p.handle.toUpperCase()}-${stone.toUpperCase()}-${size}`;
 
-      // Check variant stock
-      let availableStock = 0;
-      let unitPrice = p.base;
+      // Match the variant by stone and size. The SKU comes from the stored variant, never from the browser.
+      const source = resolveStockSource(p, stone, size);
 
-      const variant = p.variants?.find((v: any) => v.stone === stone && v.size === size);
-      if (variant) {
-        availableStock = variant.stock;
-        unitPrice = variant.price;
-      } else {
-        const delta = (p.stoneDeltas && (p.stoneDeltas as any)[stone]) || 0;
-        unitPrice = p.base + delta;
-        const key = `${stone}:${size}`;
-        availableStock = (p.inventory && (p.inventory as any)[key]) ?? 0;
-      }
-
-      if (availableStock < item.qty) {
+      if (source.mode === 'unavailable') {
+        await rollbackStock(Product, taken);
         return NextResponse.json(
-          { error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Only ${availableStock} remaining.` },
+          { error: `"${p.title}" is no longer available in ${stone}, Size ${size}. Please remove it from your bag.` },
           { status: 400 }
         );
       }
 
-      // Perform atomic decrement on variant
-      const updateResult = await Product.updateOne(
-        {
-          _id: p._id,
-          variants: { $elemMatch: { sku, stock: { $gte: item.qty } } },
-        },
-        {
-          $inc: { 'variants.$.stock': -item.qty, sold: item.qty },
-        }
-      );
+      const { sku, unitPrice } = source;
 
-      // If variant array update didn't match (e.g. Legacy product with inventory Map), update inventory Map
-      if (updateResult.modifiedCount === 0) {
-        const invKey = `inventory.${stone}:${size}`;
-        await Product.updateOne(
-          { _id: p._id },
-          { $inc: { [invKey]: -item.qty, sold: item.qty } }
+      if (source.stock < item.qty) {
+        await rollbackStock(Product, taken);
+        return NextResponse.json(
+          { error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Only ${source.stock} remaining.` },
+          { status: 400 }
         );
       }
 
-      stockDeductions.push({ productId: p.id, sku, qty: item.qty });
+      // Atomic: only succeeds while enough stock is still there, so two buyers cannot take the last piece.
+      const ok = await takeStock(Product, p._id, source.mode, stone, size, item.qty);
+      if (!ok) {
+        await rollbackStock(Product, taken);
+        return NextResponse.json(
+          { error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Someone else just bought it.` },
+          { status: 400 }
+        );
+      }
+      taken.push({ dbId: p._id, mode: source.mode, stone, size, qty: item.qty });
 
       subtotal += unitPrice * item.qty;
       verifiedItems.push({
@@ -215,6 +206,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[Create Order Error]:', err);
+    await rollbackStock(Product, taken);
     return NextResponse.json(
       { error: 'An unexpected error occurred while placing your order. Please retry.' },
       { status: 500 }

@@ -30,7 +30,10 @@ export const DEFAULT_SETTINGS = {
   bank: {
     bankName: 'Meezan Bank Ltd',
     accountTitle: 'GSS Collection',
-    accountNumber: 'PK12MEZN0001000123456701',
+    // Left blank on purpose: the real account number is saved in /admin/settings.
+    // A made-up number here could send customer payments to the wrong account
+    // if the settings read ever fails.
+    accountNumber: '',
   },
   spotlightId: 'crimson-halo-ring',
   moderateReviews: false,

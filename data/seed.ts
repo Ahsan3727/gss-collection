@@ -674,7 +674,7 @@ export async function seed() {
   {
     "slug": "contact",
     "title": "Contact & Atelier Inquiries",
-    "body": "Have questions regarding custom ring sizing, gemstone selection, or special orders? Our master jeweler workshop is available Monday to Saturday, 10:00 AM to 7:00 PM PKT.\n\nWhatsApp & Helpline: +92 300 1234567\nEmail: info@gsscollection.com\nStudio: GSS Collection Fine Jewellery, Lahore, Pakistan."
+    "body": "Have questions regarding custom ring sizing, gemstone selection, or special orders? Our master jeweler workshop is available Monday to Saturday, 10:00 AM to 7:00 PM PKT.\n\nWhatsApp & Helpline: +92 300 1234567\n\nEmail: info@gsscollection.com\n\nStudio: GSS Collection Fine Jewellery, Lahore, Pakistan."
   },
   {
     "slug": "about-us",

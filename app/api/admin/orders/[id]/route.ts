@@ -4,6 +4,7 @@ import { Order } from '@/lib/models/Order';
 import { Product } from '@/lib/models/Product';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
+import { restoreStock } from '@/lib/stock';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdminApi();
@@ -54,12 +55,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // If cancelling and not already restocked, restock items
       if (fulfil === 'cancelled' && !order.restocked) {
         for (const item of order.items) {
-          if (item.sku) {
-            await Product.updateOne(
-              { id: item.productId, 'variants.sku': item.sku },
-              { $inc: { 'variants.$.stock': item.qty, sold: -item.qty } }
-            );
-          }
+          // Match by stone and size, not by the SKU saved on the order. If the owner changed the
+          // product handle after the order was placed, the variant SKUs changed with it.
+          const product = await Product.findOne({ id: item.productId }, { variants: 1 }).lean();
+          if (!product) continue;
+          const mode = product.variants && product.variants.length > 0 ? 'variant' : 'legacy';
+          await restoreStock(Product, product._id, mode, item.stone, item.size, item.qty);
         }
         order.restocked = true;
         order.timeline.push({

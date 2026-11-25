@@ -81,7 +81,13 @@ export default async function OrderConfirmationPage({ params, searchParams }: Or
               <div className="bg-white border border-amber-200/80 p-4 rounded-sm text-xs space-y-1.5 font-mono text-ink">
                 <div>Bank: <span className="font-semibold">{settings.bank.bankName}</span></div>
                 <div>Account Title: <span className="font-semibold">{settings.bank.accountTitle}</span></div>
-                <div>Account / IBAN: <span className="font-bold text-sm tracking-wider">{settings.bank.accountNumber}</span></div>
+                {settings.bank.accountNumber ? (
+                  <div>Account / IBAN: <span className="font-bold text-sm tracking-wider">{settings.bank.accountNumber}</span></div>
+                ) : (
+                  <div className="font-sans text-ink-2">
+                    Account number: we will send it to you on WhatsApp shortly. Please wait for it before transferring.
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 pt-4 border-t border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">

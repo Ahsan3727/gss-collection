@@ -119,7 +119,6 @@ export default function CheckoutPage() {
             stone: i.stone,
             size: i.size,
             qty: i.qty,
-            sku: i.sku,
           })),
           contact: {
             email: form.email.trim(),

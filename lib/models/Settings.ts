@@ -78,7 +78,7 @@ const SettingsSchema = new Schema<ISettings>(
     bank: {
       bankName: { type: String, default: 'Meezan Bank' },
       accountTitle: { type: String, default: 'GSS Collection' },
-      accountNumber: { type: String, default: 'PK00MEZN0000000000000000' },
+      accountNumber: { type: String, default: '' },
     },
     spotlightId: { type: String, default: 'p01' },
     moderateReviews: { type: Boolean, default: false },

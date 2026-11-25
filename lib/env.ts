@@ -22,7 +22,7 @@ export function getEnv(): AppEnv {
   if (cached) return cached;
 
   const parsed = envSchema.safeParse({
-    MONGODB_URI: process.env.MONGODB_URI || process.env.MONGO_URI,
+    MONGODB_URI: process.env.MONGODB_URI,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || vercelUrl,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
