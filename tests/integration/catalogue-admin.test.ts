@@ -35,6 +35,7 @@ import { POST as postVitals } from '@/app/api/vitals/route';
 import {
   getApprovedReviews,
   getCollectionProducts,
+  getHomeCategoryShowcases,
   getHomeFeaturedProducts,
   getProductByHandle,
   getRelatedProducts,
@@ -327,5 +328,91 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
       trigger: 'update',
     });
     expect((sess.user as { role?: string }).role).toBe('');
+  });
+
+  it('builds per-category homepage showcases with max 3 rings and 4-photo More+ collages', async () => {
+    const common = {
+      setting: 'cluster',
+      family: 'halo',
+      band: 'slim',
+      stones: ['garnet'],
+      base: 9500,
+      sizes: ['6', '7'],
+      aud: 'women' as const,
+      desc: 'Test piece.',
+    };
+
+    const ladiesRings = [1, 2, 3, 4, 5].map((n) => ({
+      ...common,
+      id: `l-${n}`,
+      handle: `ladies-ring-${n}`,
+      title: `Ladies Ring ${n}`,
+      cat: 'ladies' as const,
+      kind: 'ring' as const,
+      sold: 100 - n,
+      photos: [`/images/products/ladies-${n}.jpg`],
+      status: 'active' as const,
+    }));
+
+    await Product.create([
+      ...ladiesRings,
+      // Draft and non-ring items in ladies must not take a showcase slot
+      {
+        ...common,
+        id: 'l-draft',
+        handle: 'ladies-draft',
+        title: 'Ladies Draft',
+        cat: 'ladies',
+        kind: 'ring',
+        sold: 999,
+        photos: ['/images/products/draft.jpg'],
+        status: 'draft',
+      },
+      {
+        ...common,
+        id: 'l-bracelet',
+        handle: 'ladies-bracelet',
+        title: 'Ladies Bracelet',
+        cat: 'ladies',
+        kind: 'bracelet',
+        sold: 999,
+        photos: ['/images/products/bracelet.jpg'],
+        status: 'active',
+      },
+      {
+        ...common,
+        id: 'g-1',
+        handle: 'gents-ring-1',
+        title: 'Gents Ring 1',
+        cat: 'gents',
+        kind: 'ring',
+        aud: 'men',
+        sold: 50,
+        photos: ['/images/products/gents-1.jpg'],
+        status: 'active',
+      },
+    ]);
+
+    const showcases = await getHomeCategoryShowcases();
+    // Only ladies and gents have active products; empty gems row is omitted cleanly.
+    expect(showcases.map((s) => s.handle)).toEqual(['ladies', 'gents']);
+
+    const ladies = showcases[0];
+    expect(ladies.products).toHaveLength(3);
+    expect(ladies.totalCount).toBe(5);
+    expect(ladies.href).toBe('/collections/ladies');
+    expect(ladies.collagePhotos).toEqual([
+      '/images/products/ladies-4.jpg',
+      '/images/products/ladies-5.jpg',
+      '/images/products/ladies-1.jpg',
+      '/images/products/ladies-2.jpg',
+    ]);
+
+    const gents = showcases[1];
+    expect(gents.products).toHaveLength(1);
+    expect(gents.totalCount).toBe(1);
+    expect(gents.href).toBe('/collections/gents');
+    expect(gents.collagePhotos).toHaveLength(4);
+    expect(gents.collagePhotos[0]).toBe('/images/products/gents-1.jpg');
   });
 });

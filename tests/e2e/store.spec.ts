@@ -44,9 +44,16 @@ async function assertNoAxeViolations(page: Page, route: string) {
 
 test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
   test('mobile purchase flow, sticky bar toggle, confirmation receipt, and real WhatsApp link', async ({ page }) => {
-    // 1. Home -> Collections -> Product
+    // 1. Home displays category rows with More+ collage tile -> navigates to Collections -> Product
     await page.goto('/');
     await assertNoHorizontalOverflow(page, '/');
+    await expect(page.getByRole('heading', { name: /Ladies Rings/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Gents Rings/i })).toBeVisible();
+
+    const moreTile = page.getByRole('link', { name: /More\+: browse all/i }).first();
+    await expect(moreTile).toBeVisible();
+    await moreTile.click();
+    await expect(page).toHaveURL(/\/collections\/ladies/);
 
     await page.goto('/collections/all');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

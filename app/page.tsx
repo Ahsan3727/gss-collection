@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import ProductGrid from '@/components/store/ProductGrid';
-import { getHomeFeaturedProducts } from '@/lib/catalogue';
+import { getHomeCategoryShowcases } from '@/lib/catalogue';
 import { formatMoney } from '@/lib/money';
-import type { ProductRecord } from '@/lib/types';
+import type { HomeCategoryShowcase } from '@/lib/types';
 
 export const revalidate = 300;
 
@@ -18,17 +18,19 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  let products: ProductRecord[] = [];
+  let showcases: HomeCategoryShowcase[] = [];
   let loadError = false;
 
   try {
-    products = await getHomeFeaturedProducts();
+    showcases = await getHomeCategoryShowcases();
   } catch (err) {
-    console.error('[HomePage] Failed to load featured products:', err);
+    console.error('[HomePage] Failed to load category showcases:', err);
     loadError = true;
   }
 
-  const spotlight = products.find((p) => p.photos && p.photos.length > 0) || products[0];
+  const allHomeProducts = showcases.flatMap((s) => s.products);
+  const spotlight =
+    allHomeProducts.find((p) => p.photos && p.photos.length > 0) || allHomeProducts[0];
   const spotlightPhoto = spotlight?.photos?.[0];
 
   return (
@@ -103,8 +105,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Featured Products placed immediately after hero so product grid starts high */}
-      <div className="max-w-site mx-auto px-4 md:px-6 pt-8 md:pt-12">
+      {/* Per-Category 3-Piece Rows + 4-Photo Collage More+ Tiles */}
+      <div className="max-w-site mx-auto px-4 md:px-6 pt-6 md:pt-10 divide-y divide-line">
         {loadError ? (
           <div className="py-12 border border-line bg-ground text-center p-6 my-4">
             <p className="font-display text-2xl text-ink mb-2">Catalogue temporarily unavailable</p>
@@ -112,64 +114,27 @@ export default async function HomePage() {
               Please refresh in a moment to view our sterling silver jewellery.
             </p>
           </div>
+        ) : showcases.length === 0 ? (
+          <div className="py-12 text-center text-ink-2">
+            <p>No active pieces available right now.</p>
+          </div>
         ) : (
-          <ProductGrid
-            products={products}
-            title="Featured Pieces"
-            subtitle="Recent Additions"
-          />
+          showcases.map((showcase) => (
+            <ProductGrid
+              key={showcase.handle}
+              products={showcase.products}
+              title={showcase.title}
+              subtitle={showcase.subtitle}
+              moreTile={{
+                href: showcase.href,
+                label: showcase.title,
+                totalCount: showcase.totalCount,
+                collagePhotos: showcase.collagePhotos,
+              }}
+            />
+          ))
         )}
       </div>
-
-      {/* Collections Row */}
-      <section aria-label="Browse categories" className="max-w-site mx-auto px-4 md:px-6 mt-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <Link
-            href="/collections/ladies"
-            className="group block bg-ground p-7 md:p-9 border border-line hover:border-ink transition-all min-h-[44px]"
-          >
-            <span className="text-xs tracking-[0.18em] uppercase text-ink-2 block mb-1.5">
-              For Her
-            </span>
-            <h2 className="font-display text-2xl font-medium text-ink mb-2 group-hover:underline">
-              Ladies Rings
-            </h2>
-            <p className="text-sm text-ink-2">
-              Solitaires, halo rings, and delicate everyday stacking bands.
-            </p>
-          </Link>
-
-          <Link
-            href="/collections/gents"
-            className="group block bg-ground p-7 md:p-9 border border-line hover:border-ink transition-all min-h-[44px]"
-          >
-            <span className="text-xs tracking-[0.18em] uppercase text-ink-2 block mb-1.5">
-              For Him
-            </span>
-            <h2 className="font-display text-2xl font-medium text-ink mb-2 group-hover:underline">
-              Gents Rings
-            </h2>
-            <p className="text-sm text-ink-2">
-              Classic signets, rectangle stones, and heavy solid bands.
-            </p>
-          </Link>
-
-          <Link
-            href="/collections/gems"
-            className="group block bg-ground p-7 md:p-9 border border-line hover:border-ink transition-all min-h-[44px]"
-          >
-            <span className="text-xs tracking-[0.18em] uppercase text-ink-2 block mb-1.5">
-              Untreated
-            </span>
-            <h2 className="font-display text-2xl font-medium text-ink mb-2 group-hover:underline">
-              Natural Gems
-            </h2>
-            <p className="text-sm text-ink-2">
-              Emeralds, sapphires, turquoise, and loose specimen stones.
-            </p>
-          </Link>
-        </div>
-      </section>
 
       {/* Compact Trust & Craftsmanship Bar */}
       <section aria-label="Store guarantees" className="max-w-site mx-auto px-4 md:px-6 mt-14">

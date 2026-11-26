@@ -8,6 +8,7 @@ import { useSave } from '@/lib/use-save';
 import { ALLOWED_ADMIN_ROLES, isAdminRole } from '@/lib/roles';
 import { parseSentryDsn, reportError, sanitizeTelemetryString } from '@/lib/monitoring';
 import { getSiteUrl } from '@/lib/env';
+import { selectMoreCollagePhotos } from '@/lib/catalogue';
 
 describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => {
   it('formats PKR currency consistently', () => {
@@ -129,5 +130,37 @@ describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => 
     } finally {
       Object.assign(process.env, saved);
     }
+  });
+
+  it('builds 4-photo More+ collage prioritizing unseen category items then fallbacks', () => {
+    const seven = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ photos: [`/img-${n}.jpg`] }));
+    expect(selectMoreCollagePhotos(seven)).toEqual([
+      '/img-4.jpg',
+      '/img-5.jpg',
+      '/img-6.jpg',
+      '/img-7.jpg',
+    ]);
+
+    const four = [1, 2, 3, 4].map((n) => ({ photos: [`/cat-${n}.jpg`] }));
+    expect(selectMoreCollagePhotos(four)).toEqual([
+      '/cat-4.jpg',
+      '/cat-1.jpg',
+      '/cat-2.jpg',
+      '/cat-3.jpg',
+    ]);
+
+    const oneWithFallback = selectMoreCollagePhotos(
+      [{ photos: ['/gents-1.jpg'] }],
+      ['/gents-1.jpg', '/f-1.jpg', '/f-2.jpg', '/f-3.jpg']
+    );
+    expect(oneWithFallback).toEqual(['/gents-1.jpg', '/f-1.jpg', '/f-2.jpg', '/f-3.jpg']);
+
+    expect(selectMoreCollagePhotos([{ photos: ['/only.jpg'] }], [])).toEqual([
+      '/only.jpg',
+      '/only.jpg',
+      '/only.jpg',
+      '/only.jpg',
+    ]);
+    expect(selectMoreCollagePhotos([], [])).toEqual([]);
   });
 });

@@ -222,3 +222,13 @@ export interface PageRecord {
   metaDesc?: string;
   updatedAt?: string;
 }
+
+export interface HomeCategoryShowcase {
+  handle: ProductCategory;
+  title: string;
+  subtitle: string;
+  href: string;
+  totalCount: number;
+  products: ProductRecord[];
+  collagePhotos: string[];
+}
