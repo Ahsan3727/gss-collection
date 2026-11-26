@@ -5,6 +5,7 @@ import Footer from '@/components/store/Footer';
 import AnnouncementBar from '@/components/store/AnnouncementBar';
 import { CartProvider } from '@/lib/cart-context';
 import CartDrawer from '@/components/store/CartDrawer';
+import WebVitals from '@/components/store/WebVitals';
 
 export const metadata: Metadata = {
   title: 'GSS Collection | Silver Rings & Natural Gemstones',
@@ -34,6 +35,7 @@ export default function RootLayout({
           <Footer />
           <CartDrawer />
         </CartProvider>
+        <WebVitals />
       </body>
     </html>
   );

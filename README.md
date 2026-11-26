@@ -96,11 +96,13 @@ node scripts/run_create_admin.js
   * `POST /api/orders` checks products, prices and stock on the server, takes stock atomically, applies discounts and saves the order. The SKU is always built on the server.
   * `POST /api/contact` customer inquiries.
   * `GET /api/search?q=` product search.
+  * `POST /api/vitals` receives Core Web Vitals from visitors' browsers (production only). Stored without personal data and deleted after 30 days. See `docs/baseline.md`.
 * **Admin API** lives under `/api/admin/*`, `/api/upload`, and the write routes of `/api/products` (`POST`, `PATCH`, `DELETE`). All of them require the owner to be signed in.
 
 ---
 
 ## Notes
 
-* `lib/ratelimit.ts` is an in-memory limiter that no route calls yet. If you wire it in, remember that on Vercel each serverless instance counts separately, so it is a light guard, not a hard limit. Admin login has its own lockout after 5 wrong passwords.
+* `lib/ratelimit.ts` is an in-memory limiter. Only `/api/vitals` calls it so far. If you wire it into more routes, remember that on Vercel each serverless instance counts separately, so it is a light guard, not a hard limit. Admin login has its own lockout after 5 wrong passwords.
+* `docs/baseline.md` holds the performance baseline for the 10/10 plan and how to read the field data collected by `/api/vitals`.
 * Product photos can only come from Cloudinary (`res.cloudinary.com`) or from `public/images/products`. The product editor uploads to Cloudinary for you.
