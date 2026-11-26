@@ -1,30 +1,24 @@
 import { unstable_cache } from 'next/cache';
 import { connectDB } from '@/lib/db';
+import { ensureCategories, getActiveCategories, loadCategories } from '@/lib/categories';
 import { Product } from '@/lib/models/Product';
 import { Page } from '@/lib/models/Page';
 import { Review } from '@/lib/models/Review';
 import { STONES } from '@/lib/constants';
-import type { HomeCategoryShowcase, PageRecord, ProductCategory, ProductRecord, ReviewRecord } from '@/lib/types';
+import {
+  DEFAULT_CATEGORY_SLUGS,
+  type HomeCategoryShowcase,
+  type PageRecord,
+  type ProductRecord,
+  type ReviewRecord,
+} from '@/lib/types';
 
 export const COLLECTION_PAGE_SIZE = 12;
 export const HOME_CATEGORY_VISIBLE_LIMIT = 3;
 
-const HOME_CATEGORIES: ReadonlyArray<{
-  handle: ProductCategory;
-  title: string;
-  subtitle: string;
-  ringOnly: boolean;
-}> = [
-  { handle: 'ladies', title: 'Ladies Rings', subtitle: 'For Her', ringOnly: true },
-  { handle: 'gents', title: 'Gents Rings', subtitle: 'For Him', ringOnly: true },
-  { handle: 'gems', title: 'Natural Gems & Bracelets', subtitle: 'Untreated Stones', ringOnly: false },
-];
-
 export const STATIC_COLLECTION_HANDLES = new Set([
   'all',
-  'ladies',
-  'gents',
-  'gems',
+  ...DEFAULT_CATEGORY_SLUGS,
   'new-arrivals',
   'best-sellers',
   'sale',
@@ -103,82 +97,66 @@ export function selectMoreCollagePhotos(
   return picked.slice(0, 4);
 }
 
-interface HomeFacetDoc {
-  ladiesCount: Array<{ total: number }>;
-  ladiesItems: ProductRecord[];
-  gentsCount: Array<{ total: number }>;
-  gentsItems: ProductRecord[];
-  gemsCount: Array<{ total: number }>;
-  gemsItems: ProductRecord[];
-  photoPool: Array<{ photos?: string[] }>;
+function matchesHomeKindFilter(
+  product: Pick<ProductRecord, 'kind'>,
+  filter: 'all' | 'ring' | 'bracelet' | 'stone'
+): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'ring') return !product.kind || product.kind === 'ring';
+  return product.kind === filter;
 }
 
 const getCachedHomeCategoryShowcases = unstable_cache(
   async (): Promise<HomeCategoryShowcase[]> => {
     await connectDB();
+    const activeCategories = (await loadCategories(false)).filter((c) => c.showOnHome);
+    if (activeCategories.length === 0) return [];
 
-    const ringMatch = { $or: [{ kind: 'ring' }, { kind: { $exists: false } }] };
-    const [facet] = await Product.aggregate<HomeFacetDoc>([
-      { $match: { status: 'active' } },
-      { $sort: { sortOrder: 1, sold: -1, createdAt: -1 } },
-      {
-        $facet: {
-          ladiesCount: [{ $match: { cat: 'ladies', ...ringMatch } }, { $count: 'total' }],
-          ladiesItems: [{ $match: { cat: 'ladies', ...ringMatch } }, { $limit: 7 }],
-          gentsCount: [{ $match: { cat: 'gents', ...ringMatch } }, { $count: 'total' }],
-          gentsItems: [{ $match: { cat: 'gents', ...ringMatch } }, { $limit: 7 }],
-          gemsCount: [{ $match: { cat: 'gems' } }, { $count: 'total' }],
-          gemsItems: [{ $match: { cat: 'gems' } }, { $limit: 7 }],
-          photoPool: [
-            { $match: { 'photos.0': { $exists: true } } },
-            { $limit: 12 },
-            { $project: { _id: 0, photos: 1 } },
-          ],
-        },
-      },
+    const slugs = activeCategories.map((c) => c.slug);
+    const [grouped, photoPool] = await Promise.all([
+      Product.aggregate<{ _id: string; items: ProductRecord[] }>([
+        { $match: { status: 'active', cat: { $in: slugs } } },
+        { $sort: { sortOrder: 1, sold: -1, createdAt: -1 } },
+        { $group: { _id: '$cat', items: { $push: '$$ROOT' } } },
+      ]),
+      Product.find({ status: 'active', 'photos.0': { $exists: true } })
+        .sort({ sortOrder: 1, sold: -1, createdAt: -1 })
+        .limit(12)
+        .select({ _id: 0, photos: 1 })
+        .lean(),
     ]);
 
-    if (!facet) return [];
-
-    const fallbackPhotos = (facet.photoPool || [])
+    const fallbackPhotos = (photoPool || [])
       .map((p) => p.photos?.[0])
       .filter((url): url is string => Boolean(url && url.trim()));
 
-    const byHandle: Record<ProductCategory, { items: ProductRecord[]; count: number }> = {
-      ladies: {
-        items: facet.ladiesItems || [],
-        count: facet.ladiesCount?.[0]?.total ?? (facet.ladiesItems?.length || 0),
-      },
-      gents: {
-        items: facet.gentsItems || [],
-        count: facet.gentsCount?.[0]?.total ?? (facet.gentsItems?.length || 0),
-      },
-      gems: {
-        items: facet.gemsItems || [],
-        count: facet.gemsCount?.[0]?.total ?? (facet.gemsItems?.length || 0),
-      },
-    };
+    const itemsByCat = new Map<string, ProductRecord[]>();
+    for (const row of grouped) {
+      if (row._id) itemsByCat.set(String(row._id).toLowerCase(), row.items || []);
+    }
 
     const showcases: HomeCategoryShowcase[] = [];
-    for (const cfg of HOME_CATEGORIES) {
-      const bucket = byHandle[cfg.handle];
-      if (!bucket || bucket.items.length === 0) continue;
-      const items = JSON.parse(JSON.stringify(bucket.items)) as ProductRecord[];
+    for (const cfg of activeCategories) {
+      const catItems = itemsByCat.get(cfg.slug) || [];
+      const filtered = catItems.filter((p) => matchesHomeKindFilter(p, cfg.homeKindFilter));
+      if (filtered.length === 0) continue;
+
+      const serialized = JSON.parse(JSON.stringify(filtered.slice(0, 7))) as ProductRecord[];
       showcases.push({
-        handle: cfg.handle,
-        title: cfg.title,
+        handle: cfg.slug,
+        title: cfg.name,
         subtitle: cfg.subtitle,
-        href: `/collections/${cfg.handle}`,
-        totalCount: bucket.count,
-        products: items.slice(0, HOME_CATEGORY_VISIBLE_LIMIT),
-        collagePhotos: selectMoreCollagePhotos(items, fallbackPhotos),
+        href: `/collections/${cfg.slug}`,
+        totalCount: filtered.length,
+        products: serialized.slice(0, HOME_CATEGORY_VISIBLE_LIMIT),
+        collagePhotos: selectMoreCollagePhotos(serialized, fallbackPhotos),
       });
     }
 
     return showcases;
   },
   ['home-category-showcases'],
-  { tags: ['products'], revalidate: 300 }
+  { tags: ['products', 'categories'], revalidate: 300 }
 );
 
 export async function getHomeCategoryShowcases(): Promise<HomeCategoryShowcase[]> {
@@ -208,19 +186,19 @@ export async function getCollectionProducts(
   return unstable_cache(
     async (): Promise<CollectionQueryResult> => {
       await connectDB();
+      await ensureCategories();
+      const activeCats = await getActiveCategories();
       const query: Record<string, unknown> = { status: 'active' };
 
-      if (handle === 'ladies' || handle === 'gents' || handle === 'gems') {
-        query.cat = handle;
-      } else if (handle === 'sale') {
+      if (handle === 'sale') {
         query.compareAt = { $exists: true, $ne: null };
-      } else if (
-        handle !== 'all' &&
-        handle !== 'new-arrivals' &&
-        handle !== 'best-sellers'
-      ) {
-        const mappedKey = STONE_HANDLE_TO_KEY[handle] || handle.replace(/-/g, '');
-        query.stones = { $in: [handle, mappedKey] };
+      } else if (handle !== 'all' && handle !== 'new-arrivals' && handle !== 'best-sellers') {
+        if (activeCats.some((c) => c.slug === handle)) {
+          query.cat = handle;
+        } else {
+          const mappedKey = STONE_HANDLE_TO_KEY[handle] || handle.replace(/-/g, '');
+          query.stones = { $in: [handle, mappedKey] };
+        }
       }
 
       if (safeStone) {
@@ -249,7 +227,7 @@ export async function getCollectionProducts(
       };
     },
     ['collection-products', handle, safeStone, safeSort, String(safePage), String(safeLimit)],
-    { tags: ['products'], revalidate: 300 }
+    { tags: ['products', 'categories'], revalidate: 300 }
   )();
 }
 

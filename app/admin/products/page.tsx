@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { connectDB } from '@/lib/db';
+import { loadCategories } from '@/lib/categories';
 import { Product } from '@/lib/models/Product';
 import { formatMoney } from '@/lib/money';
 import { totalProductStock } from '@/lib/pricing';
@@ -19,12 +20,13 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 interface AdminProductsPageProps {
-  searchParams?: { status?: string; q?: string; page?: string };
+  searchParams?: { status?: string; cat?: string; q?: string; page?: string };
 }
 
-function buildProductsHref(opts: { status?: string; q?: string; page?: number }) {
+function buildProductsHref(opts: { status?: string; cat?: string; q?: string; page?: number }) {
   const params = new URLSearchParams();
   if (opts.status && opts.status !== 'all') params.set('status', opts.status);
+  if (opts.cat && opts.cat !== 'all') params.set('cat', opts.cat);
   if (opts.q) params.set('q', opts.q);
   if (opts.page && opts.page > 1) params.set('page', String(opts.page));
   const qs = params.toString();
@@ -33,6 +35,7 @@ function buildProductsHref(opts: { status?: string; q?: string; page?: number })
 
 export default async function AdminProductsPage({ searchParams }: AdminProductsPageProps) {
   const statusFilter = searchParams?.status || 'all';
+  const catFilter = (searchParams?.cat || 'all').toLowerCase();
   const queryParam = (searchParams?.q || '').trim();
   const page = Math.max(1, parseInt(searchParams?.page || '1', 10) || 1);
 
@@ -42,20 +45,25 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
   if (statusFilter !== 'all') {
     query.status = statusFilter;
   }
+  if (catFilter !== 'all') {
+    query.cat = catFilter;
+  }
   if (queryParam) {
     const regex = new RegExp(queryParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     query.$or = [{ title: regex }, { handle: regex }, { stones: regex }];
   }
 
-  const [total, rawProducts] = await Promise.all([
+  const [total, rawProducts, categories] = await Promise.all([
     Product.countDocuments(query),
     Product.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * PAGE_LIMIT)
       .limit(PAGE_LIMIT)
       .lean(),
+    loadCategories(true),
   ]);
 
+  const catNameBySlug = new Map(categories.map((c) => [c.slug, c.name]));
   const products = JSON.parse(JSON.stringify(rawProducts)) as ProductRecord[];
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
@@ -77,6 +85,7 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
       {/* Search & Status Filters */}
       <form action="/admin/products" method="GET" className="mb-4 flex flex-col sm:flex-row gap-2">
         {statusFilter !== 'all' && <input type="hidden" name="status" value={statusFilter} />}
+        {catFilter !== 'all' && <input type="hidden" name="cat" value={catFilter} />}
         <label htmlFor="admin-products-search" className="sr-only">
           Search products
         </label>
@@ -97,7 +106,7 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
           </button>
           {queryParam && (
             <Link
-              href={buildProductsHref({ status: statusFilter })}
+              href={buildProductsHref({ status: statusFilter, cat: catFilter })}
               className="border border-line bg-white px-4 min-h-[44px] inline-flex items-center text-xs uppercase tracking-wider text-ink"
             >
               Clear
@@ -106,11 +115,11 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
         </div>
       </form>
 
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="flex flex-wrap gap-2 mb-3">
         {['all', 'active', 'draft', 'archived'].map((st) => (
           <Link
             key={st}
-            href={buildProductsHref({ status: st, q: queryParam, page: 1 })}
+            href={buildProductsHref({ status: st, cat: catFilter, q: queryParam, page: 1 })}
             className={`text-xs uppercase px-3.5 min-h-[44px] inline-flex items-center border transition ${
               statusFilter === st
                 ? 'bg-ink text-white border-ink font-semibold'
@@ -118,6 +127,32 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
             }`}
           >
             {st}
+          </Link>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        <Link
+          href={buildProductsHref({ status: statusFilter, cat: 'all', q: queryParam, page: 1 })}
+          className={`text-xs px-3 min-h-[44px] inline-flex items-center border transition ${
+            catFilter === 'all'
+              ? 'bg-ink text-white border-ink font-semibold'
+              : 'bg-white border-line text-ink-2 hover:border-ink'
+          }`}
+        >
+          All Categories
+        </Link>
+        {categories.map((c) => (
+          <Link
+            key={c.slug}
+            href={buildProductsHref({ status: statusFilter, cat: c.slug, q: queryParam, page: 1 })}
+            className={`text-xs px-3 min-h-[44px] inline-flex items-center border transition ${
+              catFilter === c.slug
+                ? 'bg-ink text-white border-ink font-semibold'
+                : 'bg-white border-line text-ink-2 hover:border-ink'
+            }`}
+          >
+            {c.name}
           </Link>
         ))}
       </div>
@@ -199,8 +234,9 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
                   <span className="font-medium text-ink block">{p.title}</span>
                   <span className="text-ink-2 font-mono">/products/{p.handle}</span>
                 </td>
-                <td className="py-3 px-4 capitalize text-ink-2">
-                  {p.cat} ({p.kind || 'ring'})
+                <td className="py-3 px-4 text-ink-2">
+                  {catNameBySlug.get(p.cat) || p.cat}{' '}
+                  <span className="capitalize">({p.kind || 'ring'})</span>
                 </td>
                 <td className="py-3 px-4 font-semibold text-ink">{formatMoney(p.base)}</td>
                 <td className="py-3 px-4 text-ink-2 capitalize">
@@ -239,7 +275,7 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
         total={total}
         limit={PAGE_LIMIT}
         buildHref={(nextPage) =>
-          buildProductsHref({ status: statusFilter, q: queryParam, page: nextPage })
+          buildProductsHref({ status: statusFilter, cat: catFilter, q: queryParam, page: nextPage })
         }
       />
     </div>

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { connectDB } from '@/lib/db';
+import { loadCategories } from '@/lib/categories';
 import { Product } from '@/lib/models/Product';
 import { productLookup, readDeltaMap } from '@/lib/product-write';
 import ProductForm, { type ProductFormValues } from '@/components/admin/ProductForm';
@@ -8,13 +9,15 @@ import type { ProductRecord, ProductVariant } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const CATS = ['ladies', 'gents', 'gems'];
 const KINDS = ['ring', 'bracelet', 'stone'];
 const STATUSES = ['active', 'draft', 'archived'];
 
 export default async function AdminEditProductPage({ params }: { params: { id: string } }) {
   await connectDB();
-  const product = (await Product.findOne(productLookup(params.id)).lean()) as ProductRecord | null;
+  const [product, categories] = await Promise.all([
+    Product.findOne(productLookup(params.id)).lean() as Promise<ProductRecord | null>,
+    loadCategories(true),
+  ]);
 
   if (!product) {
     notFound();
@@ -34,7 +37,7 @@ export default async function AdminEditProductPage({ params }: { params: { id: s
   const initial: ProductFormValues = {
     title: product.title || '',
     handle: product.handle || '',
-    cat: product.cat && CATS.includes(product.cat) ? product.cat : 'ladies',
+    cat: (product.cat || categories[0]?.slug || 'ladies').toLowerCase(),
     kind: product.kind && KINDS.includes(product.kind) ? product.kind : 'ring',
     desc: product.desc || '',
     base: product.base ? String(product.base) : '',
@@ -75,6 +78,11 @@ export default async function AdminEditProductPage({ params }: { params: { id: s
         productId={product.id || product.handle}
         initial={initial}
         stoneDeltas={readDeltaMap(product.stoneDeltas)}
+        categories={categories.map((c) => ({
+          slug: c.slug,
+          name: c.name,
+          defaultKind: c.defaultKind,
+        }))}
       />
     </div>
   );

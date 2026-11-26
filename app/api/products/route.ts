@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
+import { ensureCategories } from '@/lib/categories';
+import { Category } from '@/lib/models/Category';
 import { Product } from '@/lib/models/Product';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
@@ -76,6 +78,15 @@ export async function POST(req: Request) {
     }
 
     await connectDB();
+    await ensureCategories();
+
+    const categoryExists = await Category.exists({ slug: parsed.data.cat });
+    if (!categoryExists) {
+      return NextResponse.json(
+        { error: `Category "${parsed.data.cat}" does not exist. Create it in Categories first.` },
+        { status: 400 }
+      );
+    }
 
     const existing = await Product.findOne({
       $or: [{ handle: parsed.data.handle }, { id: parsed.data.handle }],
@@ -92,7 +103,11 @@ export async function POST(req: Request) {
     });
 
     revalidateTag('products');
+    revalidateTag('categories');
     revalidateTag(`product:${newProduct.handle}`);
+    revalidatePath('/');
+    revalidatePath(`/collections/${newProduct.cat}`);
+    revalidatePath('/sitemap.xml');
 
     return NextResponse.json(
       { success: true, product: JSON.parse(JSON.stringify(newProduct)) },

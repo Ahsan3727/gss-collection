@@ -32,6 +32,7 @@ export default async function HomePage() {
   const showcases = showcasesResult.data;
   const loadError = showcasesResult.error;
   const hero = settings.hero ?? DEFAULT_HERO;
+  const secondaryCategory = showcases.find((s) => s.handle !== 'ladies') || showcases[0];
 
   const allHomeProducts = showcases.flatMap((s) => s.products);
   const spotlight =
@@ -114,10 +115,10 @@ export default async function HomePage() {
                 Shop Collection
               </Link>
               <Link
-                href="/collections/gents"
+                href={secondaryCategory ? secondaryCategory.href : '/collections/new-arrivals'}
                 className="border border-white text-white text-xs uppercase tracking-[0.18em] font-semibold px-7 min-h-[48px] inline-flex items-center justify-center hover:bg-white hover:text-ink transition-colors"
               >
-                Gents Rings
+                {secondaryCategory ? secondaryCategory.title : 'New Arrivals'}
               </Link>
             </div>
           </div>

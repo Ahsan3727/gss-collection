@@ -4,18 +4,27 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
 
-const MOBILE_NAV_LINKS = [
-  { href: '/collections/all', label: 'All Jewellery' },
-  { href: '/collections/ladies', label: 'Ladies Rings' },
-  { href: '/collections/gents', label: 'Gents Rings' },
-  { href: '/collections/gems', label: 'Natural Gems' },
-  { href: '/wishlist', label: 'Wishlist' },
-  { href: '/track-order', label: 'Track Order' },
-] as const;
+export interface NavCategoryItem {
+  slug: string;
+  name: string;
+}
 
-export default function Header() {
+const DEFAULT_NAV_CATEGORIES: NavCategoryItem[] = [
+  { slug: 'ladies', name: 'Ladies Rings' },
+  { slug: 'gents', name: 'Gents Rings' },
+  { slug: 'gems', name: 'Natural Gems' },
+];
+
+export default function Header({ categories = DEFAULT_NAV_CATEGORIES }: { categories?: NavCategoryItem[] }) {
   const { totalCount, openDrawer } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const mobileNavLinks = [
+    { href: '/collections/all', label: 'All Jewellery' },
+    ...categories.map((cat) => ({ href: `/collections/${cat.slug}`, label: cat.name })),
+    { href: '/wishlist', label: 'Wishlist' },
+    { href: '/track-order', label: 'Track Order' },
+  ];
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -50,31 +59,22 @@ export default function Header() {
         </div>
 
         {/* Desktop Navigation links */}
-        <nav aria-label="Primary categories" className="hidden md:flex items-center gap-7">
+        <nav aria-label="Primary categories" className="hidden md:flex items-center gap-7 flex-wrap">
           <Link
             href="/collections/all"
-            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
+            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2 whitespace-nowrap"
           >
             All Jewellery
           </Link>
-          <Link
-            href="/collections/ladies"
-            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
-          >
-            Ladies Rings
-          </Link>
-          <Link
-            href="/collections/gents"
-            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
-          >
-            Gents Rings
-          </Link>
-          <Link
-            href="/collections/gems"
-            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
-          >
-            Natural Gems
-          </Link>
+          {categories.map((cat) => (
+            <Link
+              key={cat.slug}
+              href={`/collections/${cat.slug}`}
+              className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2 whitespace-nowrap"
+            >
+              {cat.name}
+            </Link>
+          ))}
         </nav>
 
         {/* Brand logo */}
@@ -152,7 +152,7 @@ export default function Header() {
           aria-label="Mobile menu"
           className="md:hidden border-t border-neutral-800 bg-ink text-white px-4 py-2 divide-y divide-neutral-800"
         >
-          {MOBILE_NAV_LINKS.map((item) => (
+          {mobileNavLinks.map((item) => (
             <Link
               key={item.href}
               href={item.href}

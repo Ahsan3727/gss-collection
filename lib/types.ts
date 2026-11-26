@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
-export const PRODUCT_CATEGORIES = ['ladies', 'gents', 'gems'] as const;
+export const DEFAULT_CATEGORY_SLUGS = ['ladies', 'gents', 'gems'] as const;
+export const PRODUCT_CATEGORIES = DEFAULT_CATEGORY_SLUGS;
 export const PRODUCT_KINDS = ['ring', 'bracelet', 'stone'] as const;
+export const HOME_KIND_FILTERS = ['all', 'ring', 'bracelet', 'stone'] as const;
 export const PRODUCT_STATUSES = ['active', 'draft', 'archived'] as const;
 export const PAY_METHODS = ['cod', 'bank'] as const;
 export const PAY_STATUSES = ['pending', 'paid', 'refunded'] as const;
@@ -14,8 +16,9 @@ export const FULFIL_STATUSES = [
 ] as const;
 export const DISCOUNT_TYPES = ['pct', 'fixed', 'ship'] as const;
 
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+export type ProductCategory = string;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
+export type HomeKindFilter = (typeof HOME_KIND_FILTERS)[number];
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 export type PayMethod = (typeof PAY_METHODS)[number];
 export type PayStatus = (typeof PAY_STATUSES)[number];
@@ -41,7 +44,7 @@ export const ProductRecordSchema = z.object({
   setting: z.string(),
   family: z.string().optional(),
   band: z.string().optional(),
-  cat: z.enum(PRODUCT_CATEGORIES),
+  cat: z.string().min(1),
   kind: z.enum(PRODUCT_KINDS).optional(),
   aud: z.enum(['women', 'men', 'unisex']).optional(),
   stones: z.array(z.string()),
@@ -283,8 +286,25 @@ export interface PageRecord {
   updatedAt?: string;
 }
 
+export interface CategoryRecord {
+  _id?: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  defaultKind: ProductKind;
+  homeKindFilter: HomeKindFilter;
+  sortOrder: number;
+  showInNav: boolean;
+  showOnHome: boolean;
+  active: boolean;
+  productCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface HomeCategoryShowcase {
-  handle: ProductCategory;
+  handle: string;
   title: string;
   subtitle: string;
   href: string;

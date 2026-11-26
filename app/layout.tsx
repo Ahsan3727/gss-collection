@@ -6,6 +6,7 @@ import Footer from '@/components/store/Footer';
 import { StoreFooterShell, StoreHeaderShell } from '@/components/store/StoreShell';
 import { CartProvider } from '@/lib/cart-context';
 import WebVitals from '@/components/store/WebVitals';
+import { getActiveCategories } from '@/lib/categories';
 import { getStoreSettings } from '@/lib/settings';
 import { getSiteUrl } from '@/lib/env';
 import { formatDisplayPhone } from '@/lib/contact';
@@ -65,7 +66,13 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const settings = await getStoreSettings();
+  const [settings, activeCategories] = await Promise.all([
+    getStoreSettings(),
+    getActiveCategories(),
+  ]);
+  const navCategories = activeCategories
+    .filter((cat) => cat.showInNav)
+    .map((cat) => ({ slug: cat.slug, name: cat.name }));
   const phone = formatDisplayPhone(settings.contact.phone);
 
   const orgJsonLd = {
@@ -91,12 +98,12 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
         <CartProvider>
-          <StoreHeaderShell announcement={settings.announcements?.[0]} />
+          <StoreHeaderShell announcement={settings.announcements?.[0]} categories={navCategories} />
           <main id="main-content" className="flex-1">
             {children}
           </main>
           <StoreFooterShell>
-            <Footer settings={settings} />
+            <Footer settings={settings} categories={navCategories} />
           </StoreFooterShell>
           <CartDrawer />
         </CartProvider>

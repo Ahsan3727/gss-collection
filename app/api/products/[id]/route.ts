@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
+import { ensureCategories } from '@/lib/categories';
+import { Category } from '@/lib/models/Category';
 import { Product } from '@/lib/models/Product';
 import { getAdminSession, requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
@@ -48,6 +50,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     await connectDB();
+    await ensureCategories();
+
+    const categoryExists = await Category.exists({ slug: parsed.data.cat });
+    if (!categoryExists) {
+      return NextResponse.json(
+        { error: `Category "${parsed.data.cat}" does not exist. Create it in Categories first.` },
+        { status: 400 }
+      );
+    }
+
     const product = await Product.findOne(productLookup(params.id));
 
     if (!product) {
@@ -63,6 +75,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const previousHandle = product.handle;
+    const previousCat = product.cat;
     const document = buildProductDocument(parsed.data, {
       id: product.id,
       existingDeltas: readDeltaMap(product.stoneDeltas),
@@ -100,8 +113,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     });
 
     revalidateTag('products');
+    revalidateTag('categories');
     revalidateTag(`product:${previousHandle}`);
     revalidateTag(`product:${product.handle}`);
+    revalidatePath('/');
+    revalidatePath(`/collections/${previousCat}`);
+    revalidatePath(`/collections/${product.cat}`);
+    revalidatePath('/sitemap.xml');
 
     return NextResponse.json({ success: true, product: JSON.parse(JSON.stringify(product)) });
   } catch (err: unknown) {
@@ -131,7 +149,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     });
 
     revalidateTag('products');
+    revalidateTag('categories');
     revalidateTag(`product:${product.handle}`);
+    revalidatePath('/');
+    revalidatePath(`/collections/${product.cat}`);
+    revalidatePath('/sitemap.xml');
 
     return NextResponse.json({ success: true, message: 'Product archived' });
   } catch (err: unknown) {

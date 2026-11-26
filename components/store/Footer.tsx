@@ -1,8 +1,21 @@
 import Link from 'next/link';
 import { formatDisplayPhone, whatsappLink } from '@/lib/contact';
+import type { NavCategoryItem } from '@/components/store/Header';
 import type { StoreSettingsData } from '@/lib/types';
 
-export default function Footer({ settings }: { settings: StoreSettingsData }) {
+const DEFAULT_FOOTER_CATEGORIES: NavCategoryItem[] = [
+  { slug: 'ladies', name: 'Ladies Rings' },
+  { slug: 'gents', name: 'Gents Rings' },
+  { slug: 'gems', name: 'Natural Gems & Bracelets' },
+];
+
+export default function Footer({
+  settings,
+  categories = DEFAULT_FOOTER_CATEGORIES,
+}: {
+  settings: StoreSettingsData;
+  categories?: NavCategoryItem[];
+}) {
   const displayPhone = formatDisplayPhone(settings.contact.phone);
   const waHref = whatsappLink(settings.contact.phone, 'Hello GSS Collection, I have a question.');
 
@@ -29,21 +42,16 @@ export default function Footer({ settings }: { settings: StoreSettingsData }) {
                   All Jewellery
                 </Link>
               </li>
-              <li>
-                <Link href="/collections/ladies" className="inline-flex items-center min-h-[44px] hover:text-white transition-colors">
-                  Ladies Rings
-                </Link>
-              </li>
-              <li>
-                <Link href="/collections/gents" className="inline-flex items-center min-h-[44px] hover:text-white transition-colors">
-                  Gents Rings
-                </Link>
-              </li>
-              <li>
-                <Link href="/collections/gems" className="inline-flex items-center min-h-[44px] hover:text-white transition-colors">
-                  Natural Untreated Gems
-                </Link>
-              </li>
+              {categories.map((cat) => (
+                <li key={cat.slug}>
+                  <Link
+                    href={`/collections/${cat.slug}`}
+                    className="inline-flex items-center min-h-[44px] hover:text-white transition-colors"
+                  >
+                    {cat.name}
+                  </Link>
+                </li>
+              ))}
               <li>
                 <Link href="/collections/new-arrivals" className="inline-flex items-center min-h-[44px] hover:text-white transition-colors">
                   New Arrivals

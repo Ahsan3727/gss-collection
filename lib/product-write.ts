@@ -1,11 +1,10 @@
 import mongoose from 'mongoose';
 import { STONES } from '@/lib/constants';
 
-const CATS = ['ladies', 'gents', 'gems'] as const;
 const KINDS = ['ring', 'bracelet', 'stone'] as const;
 const STATUSES = ['active', 'draft', 'archived'] as const;
 
-export type ProductCategory = (typeof CATS)[number];
+export type ProductCategory = string;
 export type ProductKind = (typeof KINDS)[number];
 export type ProductStatus = (typeof STATUSES)[number];
 
@@ -90,7 +89,7 @@ export function parseProductWrite(body: unknown): { data: ProductWriteInput } | 
   const input = body as Record<string, unknown>;
   const title = String(input.title || '').trim();
   const handle = slugifyHandle(String(input.handle || title));
-  const cat = String(input.cat || '');
+  const cat = slugifyHandle(String(input.cat || ''));
   const kind = String(input.kind || '');
   const desc = String(input.desc ?? input.description ?? '').trim();
   const base = Number(input.base);
@@ -105,7 +104,9 @@ export function parseProductWrite(body: unknown): { data: ProductWriteInput } | 
 
   if (!title) return { error: 'Title is required.' };
   if (!handle) return { error: 'Handle is required.' };
-  if (!CATS.includes(cat as ProductCategory)) return { error: 'Category must be ladies, gents, or gems.' };
+  if (!cat || !/^[a-z0-9-]+$/.test(cat)) {
+    return { error: 'Select a valid category.' };
+  }
   if (!KINDS.includes(kind as ProductKind)) return { error: 'Kind must be ring, bracelet, or stone.' };
   if (!desc) return { error: 'Description is required.' };
   if (!Number.isFinite(base) || base <= 0) return { error: 'Base price must be greater than zero.' };
@@ -169,7 +170,7 @@ export function buildProductDocument(
 ): BuiltProduct {
   const setting = input.setting || 'solitaire';
   const aud =
-    input.aud || (input.cat === 'gents' ? 'men' : input.cat === 'gems' ? 'unisex' : 'women');
+    input.aud || (input.cat === 'gents' ? 'men' : input.cat === 'ladies' ? 'women' : 'unisex');
   const existingDeltas = options?.existingDeltas || {};
   const stoneDeltas: Record<string, number> = {};
   const variants: BuiltProduct['variants'] = [];

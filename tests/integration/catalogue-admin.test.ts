@@ -13,6 +13,7 @@ vi.mock('next-auth', () => ({
 }));
 
 import { Product } from '@/lib/models/Product';
+import { Category } from '@/lib/models/Category';
 import { Page } from '@/lib/models/Page';
 import { Review } from '@/lib/models/Review';
 import { AdminUser } from '@/lib/models/AdminUser';
@@ -30,6 +31,11 @@ import {
 import { PATCH as patchInventory } from '@/app/api/admin/inventory/route';
 import { GET as listPages, POST as createPage } from '@/app/api/admin/pages/route';
 import { GET as getPage, PATCH as patchPage } from '@/app/api/admin/pages/[slug]/route';
+import { GET as listCategories, POST as createCategory } from '@/app/api/admin/categories/route';
+import {
+  PATCH as patchCategory,
+  DELETE as deleteCategory,
+} from '@/app/api/admin/categories/[slug]/route';
 import { PATCH as patchReview, DELETE as deleteReview } from '@/app/api/reviews/[id]/route';
 import { POST as postVitals } from '@/app/api/vitals/route';
 import {
@@ -84,6 +90,7 @@ beforeEach(async () => {
   mockSessionState.session = null;
   await Promise.all([
     Product.deleteMany({}),
+    Category.deleteMany({}),
     Page.deleteMany({}),
     Review.deleteMany({}),
     AdminUser.deleteMany({}),
@@ -414,5 +421,141 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
     expect(gents.href).toBe('/collections/gents');
     expect(gents.collagePhotos).toHaveLength(4);
     expect(gents.collagePhotos[0]).toBe('/images/products/gents-1.jpg');
+  });
+
+  it('manages dynamic categories, creates articles inside custom categories, migrates slugs cleanly, and blocks deleting non-empty categories', async () => {
+    mockSessionState.session = {
+      user: { id: 'a1', email: 'admin@gsscollection.pk', name: 'Admin', role: 'admin' },
+    };
+
+    // Initial GET bootstraps the 3 default categories idempotently
+    const initRes = await listCategories();
+    expect(initRes.status).toBe(200);
+    const initJson = await initRes.json();
+    expect(initJson.categories.map((c: { slug: string }) => c.slug)).toEqual(['ladies', 'gents', 'gems']);
+
+    // Reject reserved gemstone / virtual collection handles
+    const reservedRes = await createCategory(
+      jsonReq('http://localhost/api/admin/categories', 'POST', { name: 'Sale', slug: 'sale' })
+    );
+    expect(reservedRes.status).toBe(400);
+
+    const gemstoneSlugRes = await createCategory(
+      jsonReq('http://localhost/api/admin/categories', 'POST', { name: 'Garnet', slug: 'garnet' })
+    );
+    expect(gemstoneSlugRes.status).toBe(400);
+
+    // Create custom category
+    const createCatRes = await createCategory(
+      jsonReq('http://localhost/api/admin/categories', 'POST', {
+        name: 'Silver Bracelets',
+        subtitle: 'Handcrafted Wrists',
+        description: 'Pure 925 sterling silver cuffs and bracelets.',
+        defaultKind: 'bracelet',
+        homeKindFilter: 'all',
+        sortOrder: 4,
+      })
+    );
+    expect(createCatRes.status).toBe(201);
+    const catCreated = (await createCatRes.json()).category;
+    expect(catCreated.slug).toBe('silver-bracelets');
+
+    // Reject products targeting nonexistent categories
+    const badCatProdRes = await createProduct(
+      jsonReq('http://localhost/api/products', 'POST', {
+        title: 'Unknown Cat Item',
+        handle: 'unknown-cat-item',
+        cat: 'not-a-category',
+        kind: 'ring',
+        desc: 'Item',
+        base: 5000,
+        stones: ['garnet'],
+        sizes: ['6'],
+        photos: ['/images/products/crimson-halo-ring-0.jpg'],
+        status: 'active',
+        stock: { 'garnet:6': 1 },
+      })
+    );
+    expect(badCatProdRes.status).toBe(400);
+
+    // Create active article inside new custom category
+    const createArtRes = await createProduct(
+      jsonReq('http://localhost/api/products', 'POST', {
+        title: 'Artisan Onyx Cuff',
+        handle: 'artisan-onyx-cuff',
+        cat: 'silver-bracelets',
+        kind: 'bracelet',
+        desc: 'Handcrafted silver bracelet cuff.',
+        base: 14500,
+        stones: ['turquoise'],
+        sizes: ['adj'],
+        photos: ['/images/products/natural-turquoise-stone-9-7g-0.jpg'],
+        status: 'active',
+        stock: { 'turquoise:adj': 3 },
+      })
+    );
+    expect(createArtRes.status).toBe(201);
+    const createdProductId = (await createArtRes.json()).product.id;
+
+    // Collection & Homepage Showcase both surface the new category dynamically
+    const colRes = await getCollectionProducts('silver-bracelets', undefined, 'newest', 1, 12);
+    expect(colRes.total).toBe(1);
+    expect(colRes.products[0].handle).toBe('artisan-onyx-cuff');
+
+    const showcases = await getHomeCategoryShowcases();
+    const braceletRow = showcases.find((s) => s.handle === 'silver-bracelets');
+    expect(braceletRow?.title).toBe('Silver Bracelets');
+    expect(braceletRow?.href).toBe('/collections/silver-bracelets');
+    expect(braceletRow?.products).toHaveLength(1);
+
+    // Block deleting category while products still belong to it
+    const delBlocked = await deleteCategory(new Request('http://localhost'), {
+      params: { slug: 'silver-bracelets' },
+    });
+    expect(delBlocked.status).toBe(409);
+
+    // Renaming category slug migrates attached articles to the new URL address automatically
+    const patchCatRes = await patchCategory(
+      jsonReq('http://localhost', 'PATCH', {
+        name: 'Artisan Cuffs',
+        slug: 'artisan-cuffs',
+        subtitle: 'Wristwear',
+        description: 'Updated description',
+        defaultKind: 'bracelet',
+        homeKindFilter: 'all',
+        sortOrder: 4,
+      }),
+      { params: { slug: 'silver-bracelets' } }
+    );
+    expect(patchCatRes.status).toBe(200);
+
+    const updatedArticle = await Product.findOne({ id: createdProductId }).lean();
+    expect(updatedArticle?.cat).toBe('artisan-cuffs');
+
+    const migratedCollection = await getCollectionProducts('artisan-cuffs', undefined, 'newest', 1, 12);
+    expect(migratedCollection.total).toBe(1);
+
+    // Reassign article, then delete empty category cleanly
+    await patchProduct(
+      jsonReq('http://localhost', 'PATCH', {
+        title: 'Artisan Onyx Cuff',
+        handle: 'artisan-onyx-cuff',
+        cat: 'gems',
+        kind: 'bracelet',
+        desc: 'Handcrafted silver bracelet cuff.',
+        base: 14500,
+        stones: ['turquoise'],
+        sizes: ['adj'],
+        photos: ['/images/products/natural-turquoise-stone-9-7g-0.jpg'],
+        status: 'active',
+        stock: { 'turquoise:adj': 3 },
+      }),
+      { params: { id: createdProductId } }
+    );
+
+    const delOk = await deleteCategory(new Request('http://localhost'), {
+      params: { slug: 'artisan-cuffs' },
+    });
+    expect(delOk.status).toBe(200);
   });
 });

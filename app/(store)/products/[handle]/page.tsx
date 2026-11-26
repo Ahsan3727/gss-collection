@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ProductDetailClient from '@/components/store/ProductDetailClient';
 import ProductGrid from '@/components/store/ProductGrid';
 import { getApprovedReviews, getProductByHandle, getRelatedProducts } from '@/lib/catalogue';
+import { getCategoryBySlug } from '@/lib/categories';
 import { getStoreSettings } from '@/lib/settings';
 import { getSiteUrl } from '@/lib/env';
 import { totalProductStock } from '@/lib/pricing';
@@ -64,11 +65,14 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  const [related, reviews, settings] = await Promise.all([
+  const [related, reviews, settings, category] = await Promise.all([
     getRelatedProducts(product.cat, product.handle),
     getApprovedReviews(product.id || product.handle),
     getStoreSettings(),
+    getCategoryBySlug(product.cat),
   ]);
+  const categoryName =
+    category?.name || product.cat.charAt(0).toUpperCase() + product.cat.slice(1);
 
   const siteUrl = getSiteUrl();
   const totalStock = totalProductStock(product);
@@ -138,7 +142,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
       {
         '@type': 'ListItem',
         position: 2,
-        name: product.cat.charAt(0).toUpperCase() + product.cat.slice(1),
+        name: categoryName,
         item: `${siteUrl}/collections/${product.cat}`,
       },
       {
@@ -166,8 +170,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           Home
         </Link>
         <span aria-hidden="true">/</span>
-        <Link href={`/collections/${product.cat}`} className="capitalize hover:text-ink hover:underline py-1">
-          {product.cat}
+        <Link href={`/collections/${product.cat}`} className="hover:text-ink hover:underline py-1">
+          {categoryName}
         </Link>
         <span aria-hidden="true">/</span>
         <span className="text-ink font-medium truncate">{product.title}</span>

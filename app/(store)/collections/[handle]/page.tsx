@@ -2,10 +2,10 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ProductGrid from '@/components/store/ProductGrid';
+import { getCategoryBySlug } from '@/lib/categories';
 import {
   COLLECTION_PAGE_SIZE,
   getCollectionProducts,
-  isValidCollectionHandle,
 } from '@/lib/catalogue';
 import { STONES } from '@/lib/constants';
 import { getSiteUrl } from '@/lib/env';
@@ -17,26 +17,11 @@ interface CollectionPageProps {
   searchParams?: { stone?: string; sort?: string; page?: string };
 }
 
-const TITLES: Record<string, { title: string; subtitle: string; desc: string }> = {
+const BUILTIN_TITLES: Record<string, { title: string; subtitle: string; desc: string }> = {
   all: {
     title: 'All Fine Jewellery',
     subtitle: 'The Complete Catalogue',
     desc: 'Explore handcrafted 925 sterling silver rings, bracelets, and earth-mined gemstones.',
-  },
-  ladies: {
-    title: 'Ladies Rings',
-    subtitle: 'Rings for Her',
-    desc: 'Delicate halo solitaires, vintage cluster rings, and timeless stacking pieces.',
-  },
-  gents: {
-    title: 'Gents Rings',
-    subtitle: 'Rings for Him',
-    desc: 'Heavyweight signet rings, rectangular bezels, and bold handcrafted silver bands.',
-  },
-  gems: {
-    title: 'Natural Stones & Rare Gems',
-    subtitle: 'Untreated Minerals',
-    desc: 'Collector-grade untreated gemstones and authentic natural minerals.',
   },
   'new-arrivals': {
     title: 'New Arrivals',
@@ -55,14 +40,29 @@ const TITLES: Record<string, { title: string; subtitle: string; desc: string }> 
   },
 };
 
-function resolveCollectionMeta(handle: string) {
+async function resolveCollectionMeta(
+  handle: string
+): Promise<{ title: string; subtitle: string; desc: string } | null> {
   const lower = handle.toLowerCase();
-  if (TITLES[lower]) return TITLES[lower];
+  if (Object.prototype.hasOwnProperty.call(BUILTIN_TITLES, lower)) {
+    return BUILTIN_TITLES[lower];
+  }
+
+  const dbCategory = await getCategoryBySlug(lower);
+  if (dbCategory) {
+    return {
+      title: dbCategory.name,
+      subtitle: dbCategory.subtitle || 'Collection',
+      desc:
+        dbCategory.description ||
+        `Explore handcrafted ${dbCategory.name.toLowerCase()} in 925 sterling silver with natural untreated gemstones.`,
+    };
+  }
 
   const matchedStone = Object.values(STONES).find(
     (s) => s.handle === lower || s.name.toLowerCase() === lower.replace(/-/g, ' ')
   );
-  const stoneByKey = STONES[lower];
+  const stoneByKey = Object.prototype.hasOwnProperty.call(STONES, lower) ? STONES[lower] : undefined;
   const stone = stoneByKey || matchedStone;
 
   if (stone) {
@@ -73,12 +73,7 @@ function resolveCollectionMeta(handle: string) {
     };
   }
 
-  const formatted = lower.replace(/-/g, ' ');
-  return {
-    title: formatted.charAt(0).toUpperCase() + formatted.slice(1),
-    subtitle: 'Collection',
-    desc: 'Handcrafted in 925 sterling silver with natural untreated gemstones.',
-  };
+  return null;
 }
 
 function buildCollectionUrl(
@@ -95,10 +90,10 @@ function buildCollectionUrl(
 
 export async function generateMetadata({ params }: CollectionPageProps): Promise<Metadata> {
   const handle = params.handle.toLowerCase();
-  if (!isValidCollectionHandle(handle)) {
+  const info = await resolveCollectionMeta(handle);
+  if (!info) {
     return { title: 'Collection Not Found' };
   }
-  const info = resolveCollectionMeta(handle);
   return {
     title: info.title,
     description: info.desc,
@@ -115,8 +110,9 @@ export async function generateMetadata({ params }: CollectionPageProps): Promise
 
 export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
   const handle = params.handle.toLowerCase();
+  const info = await resolveCollectionMeta(handle);
 
-  if (!isValidCollectionHandle(handle)) {
+  if (!info) {
     notFound();
   }
 
@@ -124,7 +120,6 @@ export default async function CollectionPage({ params, searchParams }: Collectio
   const activeSort = searchParams?.sort || 'newest';
   const currentPage = Math.max(1, parseInt(searchParams?.page || '1', 10) || 1);
 
-  const info = resolveCollectionMeta(handle);
   const { products, total, page, totalPages } = await getCollectionProducts(
     handle,
     activeStone,

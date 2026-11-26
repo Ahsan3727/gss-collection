@@ -22,7 +22,7 @@ export interface IProduct extends Document {
   setting: string;
   family: string;
   band: string;
-  cat: 'ladies' | 'gents' | 'gems';
+  cat: string;
   kind: 'ring' | 'bracelet' | 'stone';
   aud: 'women' | 'men' | 'unisex';
   stones: string[];
@@ -65,7 +65,7 @@ const ProductSchema = new Schema<IProduct>(
     setting: { type: String, required: true },
     family: { type: String, required: true },
     band: { type: String, required: true },
-    cat: { type: String, enum: ['ladies', 'gents', 'gems'], required: true, index: true },
+    cat: { type: String, required: true, lowercase: true, trim: true, index: true },
     kind: { type: String, enum: ['ring', 'bracelet', 'stone'], default: 'ring' },
     aud: { type: String, enum: ['women', 'men', 'unisex'], required: true },
     stones: [{ type: String }],

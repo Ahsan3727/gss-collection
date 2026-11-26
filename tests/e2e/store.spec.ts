@@ -193,7 +193,7 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await page.unroute('**/api/orders');
   });
 
-  test('admin protection, login, order status transition, and inventory save feedback', async ({ page }) => {
+  test('admin protection, login, order status transition, and inventory save feedback', async ({ page }, testInfo) => {
     // 1. Logged-out access redirects to login
     await page.context().clearCookies();
     await page.goto('/admin/orders');
@@ -276,6 +276,71 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await page.getByRole('button', { name: /Restore Default Copy/i }).click();
     await page.getByRole('button', { name: /Save Settings/i }).click();
     await expect(page.getByText(/Settings saved/i)).toBeVisible();
+
+    // 6. Dynamic Admin Categories -> Create article in category -> Verify live URL -> Hide category cleanly
+    const projSlug = testInfo.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const customCatName = `Cuffs ${testInfo.project.name}`;
+    const customCatSlug = `cuffs-${projSlug}`;
+    const customArticleTitle = `Hammered Cuff ${testInfo.project.name}`;
+
+    await page.goto('/admin/categories');
+    await assertNoHorizontalOverflow(page, '/admin/categories');
+    await assertNoAxeViolations(page, '/admin/categories');
+
+    await page.getByRole('button', { name: /Add category/i }).click();
+    await page.getByLabel(/Category Name/i).fill(customCatName);
+    await page.getByLabel(/Short Eyebrow Label/i).fill('Wristwear');
+    await page.getByLabel(/Collection Description/i).fill('Custom silver cuffs category.');
+    await page.getByLabel(/Default Article Type/i).selectOption('bracelet');
+    await page.getByRole('button', { name: /Create Category/i }).click();
+    await expect(page.getByText(new RegExp(`/collections/${customCatSlug}`))).toBeVisible();
+
+    // Jump directly to New Article pre-scoped to the new category
+    await page.locator(`a[href="/admin/products/new?cat=${customCatSlug}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/products/new\\?cat=${customCatSlug}`));
+    await expect(page.locator('#pf-cat')).toHaveValue(customCatSlug);
+
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          url: '/images/products/natural-turquoise-stone-9-7g-0.jpg',
+        }),
+      });
+    });
+
+    await page.getByLabel(/^Title \*/i).fill(customArticleTitle);
+    await page.getByLabel(/^Description \*/i).fill('Handcrafted custom category silver bracelet.');
+    await page.getByLabel(/Base price \(PKR\)/i).fill('14000');
+    await page.getByRole('button', { name: 'Turquoise', exact: true }).click();
+    await page.locator('#pf-photos').setInputFiles({
+      name: 'cuff.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    });
+    await expect(page.locator('img[alt="Product photo 1"]')).toBeVisible();
+    await page.unroute('**/api/upload');
+
+    await page.getByLabel(/Stock for Turquoise/i).fill('2');
+    await page.getByLabel(/Visibility/i).selectOption('active');
+    await page.getByRole('button', { name: /Create product/i }).click();
+    await expect(page).toHaveURL(/\/admin\/products$/);
+
+    // Visit live custom collection URL and verify article appears cleanly
+    await page.goto(`/collections/${customCatSlug}`);
+    await expect(page.getByRole('heading', { level: 1, name: customCatName })).toBeVisible();
+    await expect(page.getByText(customArticleTitle)).toBeVisible();
+    await assertNoHorizontalOverflow(page, `/collections/${customCatSlug}`);
+    await assertNoAxeViolations(page, `/collections/${customCatSlug}`);
+
+    // Hide temporary test category so subsequent test assertions keep clean navigation state
+    await page.goto('/admin/categories');
+    await page.getByRole('button', { name: new RegExp(customCatName, 'i') }).click();
+    await page.getByLabel(/Active on store/i).uncheck();
+    await page.getByRole('button', { name: /Save Changes/i }).click();
+    await expect(page.getByText(/Category updated/i)).toBeVisible();
   });
 
   test('zero horizontal overflow and WCAG AA axe compliance across all storefront routes', async ({ page }) => {

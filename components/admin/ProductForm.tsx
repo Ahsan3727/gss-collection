@@ -11,9 +11,15 @@ import ConfirmDialog from '@/components/admin/ConfirmDialog';
 // Do not import from '@/lib/product-write' here: it pulls mongoose into the browser bundle.
 // The rules below mirror parseProductWrite(), which stays the final authority on the server.
 
-type Category = 'ladies' | 'gents' | 'gems';
+type Category = string;
 type Kind = 'ring' | 'bracelet' | 'stone';
 type Status = 'active' | 'draft' | 'archived';
+
+export interface ProductCategoryOption {
+  slug: string;
+  name: string;
+  defaultKind?: Kind;
+}
 
 export interface ProductFormValues {
   title: string;
@@ -38,12 +44,16 @@ interface ProductFormProps {
   initial?: ProductFormValues;
   /** Edit mode: per-stone price differences already stored on the product (read only). */
   stoneDeltas?: Record<string, number>;
+  /** Dynamic categories loaded from Admin Categories. */
+  categories?: ProductCategoryOption[];
+  /** Optional initial category slug when launched via /admin/categories. */
+  initialCat?: string;
 }
 
-const CATEGORIES: { value: Category; label: string }[] = [
-  { value: 'ladies', label: 'Ladies' },
-  { value: 'gents', label: 'Gents' },
-  { value: 'gems', label: 'Gems' },
+const FALLBACK_CATEGORIES: ProductCategoryOption[] = [
+  { slug: 'ladies', name: 'Ladies Rings', defaultKind: 'ring' },
+  { slug: 'gents', name: 'Gents Rings', defaultKind: 'ring' },
+  { slug: 'gems', name: 'Natural Gems & Bracelets', defaultKind: 'stone' },
 ];
 
 const KINDS: { value: Kind; label: string }[] = [
@@ -69,17 +79,21 @@ const inputClass =
 const cardClass = 'bg-white border border-line p-6 shadow-sm';
 const cardTitleClass = 'font-display text-xl font-normal text-ink mb-4 pb-2 border-b border-line';
 
-function blankValues(): ProductFormValues {
+function blankValues(categoryOptions: ProductCategoryOption[], initialCat?: string): ProductFormValues {
+  const matched =
+    (initialCat && categoryOptions.find((c) => c.slug === initialCat)) || categoryOptions[0];
+  const kind: Kind = matched?.defaultKind || 'ring';
+  const sizes = kind === 'ring' ? [...DEFAULT_RING_SIZES] : [FIXED_SIZE[kind]];
   return {
     title: '',
     handle: '',
-    cat: 'ladies',
-    kind: 'ring',
+    cat: matched?.slug || 'ladies',
+    kind,
     desc: '',
     base: '',
     compareAt: '',
     stones: [],
-    sizes: [...DEFAULT_RING_SIZES],
+    sizes,
     stock: {},
     status: 'draft',
     photos: [],
@@ -118,12 +132,31 @@ function sortSizes(sizes: string[]) {
   return [...sizes].sort((a, b) => rank(a) - rank(b));
 }
 
-export default function ProductForm({ mode, productId, initial, stoneDeltas = {} }: ProductFormProps) {
+export default function ProductForm({
+  mode,
+  productId,
+  initial,
+  stoneDeltas = {},
+  categories,
+  initialCat,
+}: ProductFormProps) {
   const router = useRouter();
   const isEdit = mode === 'edit';
+  const categoryOptions = useMemo(() => {
+    const base = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
+    if (initial?.cat && !base.some((c) => c.slug === initial.cat)) {
+      return [...base, { slug: initial.cat, name: initial.cat }];
+    }
+    return base;
+  }, [categories, initial?.cat]);
 
-  const [values, setValues] = useState<ProductFormValues>(() => initial ?? blankValues());
-  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initial ?? blankValues()));
+  const initialValues = useMemo(
+    () => initial ?? blankValues(categoryOptions, initialCat),
+    [initial, categoryOptions, initialCat]
+  );
+
+  const [values, setValues] = useState<ProductFormValues>(initialValues);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initialValues));
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [handleTouched, setHandleTouched] = useState(isEdit);
   const [handleLocked, setHandleLocked] = useState(isEdit);
@@ -167,6 +200,21 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
 
   const changeTitle = (title: string) => {
     setValues((v) => ({ ...v, title, handle: handleTouched ? v.handle : slugify(title) }));
+  };
+
+  const changeCat = (catSlug: string) => {
+    setValues((v) => {
+      if (isEdit) return { ...v, cat: catSlug };
+      const chosen = categoryOptions.find((c) => c.slug === catSlug);
+      const nextKind = chosen?.defaultKind ?? v.kind;
+      const nextSizes =
+        nextKind === v.kind
+          ? v.sizes
+          : nextKind === 'ring'
+            ? [...DEFAULT_RING_SIZES]
+            : [FIXED_SIZE[nextKind]];
+      return { ...v, cat: catSlug, kind: nextKind, sizes: nextSizes };
+    });
   };
 
   const changeKind = (kind: Kind) => {
@@ -657,21 +705,29 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
             <h2 className={cardTitleClass}>Type</h2>
             <div className="space-y-4">
               <div>
-                <label htmlFor="pf-cat" className={labelClass}>
-                  Category *
-                </label>
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <label htmlFor="pf-cat" className="block uppercase tracking-wider font-semibold text-ink">
+                    Category *
+                  </label>
+                  <Link href="/admin/categories" className="text-xs underline text-ink-2 hover:text-ink">
+                    Manage categories
+                  </Link>
+                </div>
                 <select
                   id="pf-cat"
                   value={values.cat}
-                  onChange={(e) => setValues((v) => ({ ...v, cat: e.target.value as Category }))}
+                  onChange={(e) => changeCat(e.target.value)}
                   className={inputClass}
                 >
-                  {CATEGORIES.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  {categoryOptions.map((option) => (
+                    <option key={option.slug} value={option.slug}>
+                      {option.name}
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-ink-2 mt-1">
+                  Category address: <span className="font-mono text-ink">/collections/{values.cat}</span>
+                </p>
               </div>
               <div>
                 <label htmlFor="pf-kind" className={labelClass}>

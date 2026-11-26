@@ -13,6 +13,7 @@ vi.mock('next-auth', () => ({
 }));
 
 import { Product } from '@/lib/models/Product';
+import { Category } from '@/lib/models/Category';
 import { Order } from '@/lib/models/Order';
 import { Counter } from '@/lib/models/Counter';
 import { Discount } from '@/lib/models/Discount';
@@ -161,6 +162,7 @@ beforeEach(async () => {
   mockSessionState.session = null;
   await Promise.all([
     Product.deleteMany({}),
+    Category.deleteMany({}),
     Order.deleteMany({}),
     Counter.deleteMany({}),
     Discount.deleteMany({}),
