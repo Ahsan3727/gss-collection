@@ -1,7 +1,8 @@
 const mongoUri = process.env.MONGODB_URI;
 const authSecret = process.env.NEXTAUTH_SECRET || '';
+const isLintCommand = process.argv.includes('lint');
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !isLintCommand) {
   if (!mongoUri) {
     throw new Error('MONGODB_URI is required');
   }
