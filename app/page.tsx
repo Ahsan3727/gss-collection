@@ -4,7 +4,8 @@ import Image from 'next/image';
 import ProductGrid from '@/components/store/ProductGrid';
 import { getHomeCategoryShowcases } from '@/lib/catalogue';
 import { formatMoney } from '@/lib/money';
-import type { HomeCategoryShowcase } from '@/lib/types';
+import { getStoreSettings } from '@/lib/settings';
+import { DEFAULT_HERO, type HomeCategoryShowcase } from '@/lib/types';
 
 export const revalidate = 300;
 
@@ -18,75 +19,93 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  let showcases: HomeCategoryShowcase[] = [];
-  let loadError = false;
+  const [settings, showcasesResult] = await Promise.all([
+    getStoreSettings(),
+    getHomeCategoryShowcases()
+      .then((data) => ({ data, error: false as const }))
+      .catch((err) => {
+        console.error('[HomePage] Failed to load category showcases:', err);
+        return { data: [] as HomeCategoryShowcase[], error: true as const };
+      }),
+  ]);
 
-  try {
-    showcases = await getHomeCategoryShowcases();
-  } catch (err) {
-    console.error('[HomePage] Failed to load category showcases:', err);
-    loadError = true;
-  }
+  const showcases = showcasesResult.data;
+  const loadError = showcasesResult.error;
+  const hero = settings.hero ?? DEFAULT_HERO;
 
   const allHomeProducts = showcases.flatMap((s) => s.products);
   const spotlight =
     allHomeProducts.find((p) => p.photos && p.photos.length > 0) || allHomeProducts[0];
-  const spotlightPhoto = spotlight?.photos?.[0];
+  const hasCustomHeroImage = Boolean(hero.imageUrl && hero.imageUrl.trim().length > 0);
+  const heroImageSrc = hasCustomHeroImage ? hero.imageUrl.trim() : spotlight?.photos?.[0];
+  const heroImageAlt = hasCustomHeroImage
+    ? hero.imageAlt?.trim() || hero.headline
+    : spotlight?.title || 'Handcrafted 925 sterling silver gemstone ring';
+  const heroLinkHref = hasCustomHeroImage
+    ? hero.linkHref?.trim() || '/collections/all'
+    : spotlight
+      ? `/products/${spotlight.handle}`
+      : '/collections/all';
 
   return (
     <div className="pb-16">
-      {/* Mobile-first Editorial Hero with real product photography immediately visible */}
+      {/* Mobile-first Editorial Hero (copy & picture configurable in /admin/settings) */}
       <section className="bg-ink text-white py-8 md:py-16">
         <div className="max-w-site mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-center">
-          {/* Hero product spotlight image: shown at top on phones so shoppers see real rings on screen 1 */}
+          {/* Hero product or custom campaign image: shown at top on phones */}
           <div className="md:col-span-5 md:order-2">
             <Link
-              href={spotlight ? `/products/${spotlight.handle}` : '/collections/all'}
+              href={heroLinkHref}
               className="group block relative aspect-[4/3] sm:aspect-square w-full max-w-md mx-auto bg-neutral-900 border border-neutral-800 overflow-hidden"
             >
-              {spotlightPhoto ? (
+                {
+                  heroImageSrc?(
                 <Image
-                  src={spotlightPhoto}
-                  alt={spotlight?.title || 'Handcrafted 925 sterling silver gemstone ring'}
-                  fill
-                  priority
-                  sizes="(max-width: 768px) 100vw, 440px"
-                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                  src={heroImageSrc}
+              alt={heroImageAlt}
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 440px"
+              className="object-cover group-hover:scale-105 transition-transform duration-700"
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
-                  <span className="font-display text-3xl tracking-widest uppercase text-white mb-2">
-                    Pure Silver
-                  </span>
-                  <span className="text-xs tracking-[0.2em] text-neutral-300 uppercase">
-                    Hallmarked 925
-                  </span>
-                </div>
+              <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                <span className="font-display text-3xl tracking-widest uppercase text-white mb-2">
+                  Pure Silver
+                </span>
+                <span className="text-xs tracking-[0.2em] text-neutral-300 uppercase">
+                  Hallmarked 925
+                </span>
+              </div>
               )}
-              {spotlight && (
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end justify-between text-white">
-                  <div>
-                    <span className="text-xs uppercase tracking-wider text-neutral-200 block">
-                      Featured Piece
-                    </span>
-                    <span className="font-display text-lg font-medium">{spotlight.title}</span>
-                  </div>
-                  <span className="text-sm font-semibold">{formatMoney(spotlight.base)}</span>
+                {!hasCustomHeroImage && spotlight && (
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end justify-between text-white">
+                <div>
+                  <span className="text-xs uppercase tracking-wider text-neutral-200 block">
+                    Featured Piece
+                  </span>
+                  <span className="font-display text-lg font-medium">{spotlight.title}</span>
                 </div>
+                <span className="text-sm font-semibold">{formatMoney(spotlight.base)}</span>
+              </div>
               )}
             </Link>
           </div>
 
           <div className="md:col-span-7 md:order-1 text-center md:text-left">
-            <span className="text-xs font-semibold tracking-[0.2em] uppercase text-neutral-300 mb-2 block">
-              Handcrafted in 925 Sterling Silver
-            </span>
+            {hero.eyebrow && (
+              <span className="text-xs font-semibold tracking-[0.2em] uppercase text-neutral-300 mb-2 block">
+                {hero.eyebrow}
+              </span>
+            )}
             <h1 className="font-display text-3xl sm:text-5xl md:text-6xl font-normal tracking-tight leading-[1.08] mb-4">
-              Natural untreated gemstones, set for a lifetime.
+              {hero.headline}
             </h1>
-            <p className="text-neutral-200 text-sm sm:text-base md:text-lg font-light leading-relaxed mb-6 max-w-xl mx-auto md:mx-0">
-              Individually crafted with hallmarked silver and earth-mined stones. From bold signets to delicate solitaires.
-            </p>
+            {hero.description && (
+              <p className="text-neutral-200 text-sm sm:text-base md:text-lg font-light leading-relaxed mb-6 max-w-xl mx-auto md:mx-0">
+                {hero.description}
+              </p>
+            )}
             <div className="flex flex-wrap gap-3 justify-center md:justify-start">
               <Link
                 href="/collections/all"

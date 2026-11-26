@@ -142,6 +142,65 @@ export const ShippingMethodSchema = z.object({
 
 export type ShippingMethod = z.infer<typeof ShippingMethodSchema>;
 
+export const HERO_LIMITS = {
+  eyebrowMax: 80,
+  headlineMin: 3,
+  headlineMax: 120,
+  descriptionMax: 320,
+  imageAltMax: 140,
+  linkHrefMax: 160,
+} as const;
+
+export function isSafeHeroImageUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (trimmed === '') return true;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+  return trimmed.startsWith('https://res.cloudinary.com/');
+}
+
+export function isSafeHeroLinkHref(href: string): boolean {
+  const trimmed = href.trim();
+  if (trimmed === '') return true;
+  return trimmed.startsWith('/') && !trimmed.startsWith('//');
+}
+
+export const HeroSettingsSchema = z.object({
+  eyebrow: z.string().trim().max(HERO_LIMITS.eyebrowMax),
+  headline: z
+    .string()
+    .trim()
+    .min(HERO_LIMITS.headlineMin, `Headline must be at least ${HERO_LIMITS.headlineMin} characters`)
+    .max(HERO_LIMITS.headlineMax, `Headline must be ${HERO_LIMITS.headlineMax} characters or fewer`),
+  description: z
+    .string()
+    .trim()
+    .max(HERO_LIMITS.descriptionMax, `Description must be ${HERO_LIMITS.descriptionMax} characters or fewer`),
+  imageUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(isSafeHeroImageUrl, 'Hero image must be uploaded via Cloudinary or use a local /images/ path'),
+  imageAlt: z.string().trim().max(HERO_LIMITS.imageAltMax).optional(),
+  linkHref: z
+    .string()
+    .trim()
+    .max(HERO_LIMITS.linkHrefMax)
+    .refine(isSafeHeroLinkHref, 'Hero link must be a relative storefront path starting with /')
+    .optional(),
+});
+
+export type HeroSettings = z.infer<typeof HeroSettingsSchema>;
+
+export const DEFAULT_HERO: HeroSettings = {
+  eyebrow: 'Handcrafted in 925 Sterling Silver',
+  headline: 'Natural untreated gemstones, set for a lifetime.',
+  description:
+    'Individually crafted with hallmarked silver and earth-mined stones. From bold signets to delicate solitaires.',
+  imageUrl: '',
+  imageAlt: '',
+  linkHref: '/collections/all',
+};
+
 export const StoreSettingsSchema = z.object({
   storeName: z.string(),
   tagline: z.string(),
@@ -163,6 +222,7 @@ export const StoreSettingsSchema = z.object({
     accountTitle: z.string(),
     accountNumber: z.string(),
   }),
+  hero: HeroSettingsSchema.optional(),
   spotlightId: z.string().optional(),
   moderateReviews: z.boolean(),
 });

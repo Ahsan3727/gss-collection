@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { formatMoney } from '@/lib/money';
 import { isVitalName, ratingFor, routeFromPath } from '@/lib/vitals';
 import { getCartFromCookie, serializeCartCookie } from '@/lib/cart';
@@ -9,6 +9,8 @@ import { ALLOWED_ADMIN_ROLES, isAdminRole } from '@/lib/roles';
 import { parseSentryDsn, reportError, sanitizeTelemetryString } from '@/lib/monitoring';
 import { getSiteUrl } from '@/lib/env';
 import { selectMoreCollagePhotos } from '@/lib/catalogue';
+import { shrinkImage, uploadAdminImage } from '@/lib/client-image';
+import { HeroSettingsSchema, isSafeHeroImageUrl, isSafeHeroLinkHref } from '@/lib/types';
 
 describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => {
   it('formats PKR currency consistently', () => {
@@ -162,5 +164,60 @@ describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => 
       '/only.jpg',
     ]);
     expect(selectMoreCollagePhotos([], [])).toEqual([]);
+  });
+
+  it('validates hero image URLs and relative links strictly', () => {
+    expect(isSafeHeroImageUrl('')).toBe(true);
+    expect(isSafeHeroImageUrl('/images/products/hero.jpg')).toBe(true);
+    expect(isSafeHeroImageUrl('https://res.cloudinary.com/demo/image/upload/v1/banner.jpg')).toBe(true);
+    expect(isSafeHeroImageUrl('//evil.example/img.jpg')).toBe(false);
+    expect(isSafeHeroImageUrl('https://evil.example/img.jpg')).toBe(false);
+    expect(isSafeHeroImageUrl('javascript:alert(1)')).toBe(false);
+
+    expect(isSafeHeroLinkHref('')).toBe(true);
+    expect(isSafeHeroLinkHref('/collections/gents')).toBe(true);
+    expect(isSafeHeroLinkHref('//evil.example')).toBe(false);
+    expect(isSafeHeroLinkHref('https://evil.example')).toBe(false);
+
+    const badHero = HeroSettingsSchema.safeParse({
+      eyebrow: 'Studio',
+      headline: 'Hi',
+      description: 'Valid',
+      imageUrl: '',
+    });
+    expect(badHero.success).toBe(false);
+  });
+
+  it('validates, skips unnecessary shrink on small/vector files, and uploads admin images cleanly', async () => {
+    const svg = new File(['<svg></svg>'], 'mark.svg', { type: 'image/svg+xml' });
+    expect(await shrinkImage(svg)).toBe(svg);
+
+    const nonImg = new File(['text'], 'notes.txt', { type: 'text/plain' });
+    await expect(uploadAdminImage(nonImg, 'hero')).rejects.toThrow(/not an image/i);
+
+    const tinyPng = new File([new Uint8Array([137, 80, 78, 71])], 'hero.png', { type: 'image/png' });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ success: true, url: 'https://res.cloudinary.com/demo/image/upload/v1/hero.png' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'Cloudinary down' }), { status: 500 })
+      );
+
+    try {
+      const ok = await uploadAdminImage(tinyPng, 'hero');
+      expect(ok.url).toBe('https://res.cloudinary.com/demo/image/upload/v1/hero.png');
+      const reqInit = fetchSpy.mock.calls[0]?.[1];
+      const sentBody = reqInit?.body as FormData;
+      expect(sentBody.get('folder')).toBe('hero');
+
+      await expect(uploadAdminImage(tinyPng, 'hero')).rejects.toThrow(/Cloudinary down/i);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

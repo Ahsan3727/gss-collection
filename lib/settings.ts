@@ -1,7 +1,9 @@
 import { unstable_cache } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Settings } from '@/lib/models/Settings';
-import type { StoreSettingsData } from '@/lib/types';
+import { DEFAULT_HERO, type StoreSettingsData } from '@/lib/types';
+
+export { DEFAULT_HERO };
 
 export const DEFAULT_SETTINGS: StoreSettingsData = {
   storeName: 'GSS Collection',
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: StoreSettingsData = {
     // Left blank on purpose: the real account number is saved in /admin/settings.
     accountNumber: '',
   },
+  hero: DEFAULT_HERO,
   spotlightId: 'crimson-halo-ring',
   moderateReviews: false,
 };
@@ -49,11 +52,21 @@ export async function loadSettings(): Promise<StoreSettingsData> {
   const doc = await Settings.findOne().lean();
   if (!doc) return DEFAULT_SETTINGS;
   const serialized = JSON.parse(JSON.stringify(doc)) as Partial<StoreSettingsData>;
+  const rawHero = serialized.hero;
   return {
     ...DEFAULT_SETTINGS,
     ...serialized,
     contact: { ...DEFAULT_SETTINGS.contact, ...(serialized.contact || {}) },
     bank: { ...DEFAULT_SETTINGS.bank, ...(serialized.bank || {}) },
+    hero: {
+      eyebrow: typeof rawHero?.eyebrow === 'string' ? rawHero.eyebrow : DEFAULT_HERO.eyebrow,
+      headline: rawHero?.headline?.trim() ? rawHero.headline : DEFAULT_HERO.headline,
+      description:
+        typeof rawHero?.description === 'string' ? rawHero.description : DEFAULT_HERO.description,
+      imageUrl: rawHero?.imageUrl ?? DEFAULT_HERO.imageUrl,
+      imageAlt: rawHero?.imageAlt ?? DEFAULT_HERO.imageAlt,
+      linkHref: rawHero?.linkHref?.trim() ? rawHero.linkHref : DEFAULT_HERO.linkHref,
+    },
     shipping: {
       pk: serialized.shipping?.pk?.length ? serialized.shipping.pk : DEFAULT_SETTINGS.shipping.pk,
       intl: serialized.shipping?.intl?.length ? serialized.shipping.intl : DEFAULT_SETTINGS.shipping.intl,

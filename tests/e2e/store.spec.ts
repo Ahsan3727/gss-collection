@@ -228,6 +228,54 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await firstCard.getByRole('button', { name: /Increase stock/i }).first().click();
     await firstCard.getByRole('button', { name: /^Save$/i }).first().click();
     await expect(firstCard.getByText(/Saved/i).first()).toBeVisible();
+
+    // 5. Homepage Hero picture + text configuration persists live on '/' and restores cleanly
+    await page.goto('/admin/settings');
+    await assertNoHorizontalOverflow(page, '/admin/settings');
+    await assertNoAxeViolations(page, '/admin/settings');
+
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          url: '/images/products/emerald-halo-oval-ring-0.jpg',
+        }),
+      });
+    });
+
+    await page.locator('#st-hero-upload').setInputFiles({
+      name: 'hero-banner.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    });
+    await expect(page.getByRole('button', { name: /Use Default Ring/i })).toBeVisible();
+    await page.unroute('**/api/upload');
+
+    await page.getByLabel(/Eyebrow Line/i).fill('Atelier Signature Showcase');
+    await page.getByLabel(/Main Headline/i).fill('Custom Silver Jewellery Live Test');
+    await page.getByLabel(/Description Text/i).fill('Crafted with earth-mined stones.');
+    await page.getByRole('button', { name: /Save Settings/i }).click();
+    await expect(page.getByText(/Settings saved/i)).toBeVisible();
+
+    await page.goto('/');
+    await expect(page.getByText('Atelier Signature Showcase')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Custom Silver Jewellery Live Test' })
+    ).toBeVisible();
+    await expect(page.getByText('Crafted with earth-mined stones.')).toBeVisible();
+    const heroImg = page.locator('section.bg-ink img').first();
+    await expect(heroImg).toBeVisible();
+    await assertNoHorizontalOverflow(page, '/');
+    await assertNoAxeViolations(page, '/');
+
+    // Restore original hero text + spotlight fallback so subsequent mobile runs remain deterministic
+    await page.goto('/admin/settings');
+    await page.getByRole('button', { name: /Use Default Ring/i }).click();
+    await page.getByRole('button', { name: /Restore Default Copy/i }).click();
+    await page.getByRole('button', { name: /Save Settings/i }).click();
+    await expect(page.getByText(/Settings saved/i)).toBeVisible();
   });
 
   test('zero horizontal overflow and WCAG AA axe compliance across all storefront routes', async ({ page }) => {

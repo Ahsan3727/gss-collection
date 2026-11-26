@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { STONES, SIZE_MM } from '@/lib/constants';
 import { formatMoney } from '@/lib/money';
+import { uploadAdminImage } from '@/lib/client-image';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 
 // Do not import from '@/lib/product-write' here: it pulls mongoose into the browser bundle.
@@ -62,12 +63,6 @@ const DEFAULT_RING_SIZES = ['5', '6', '7'];
 const FIXED_SIZE: Record<Exclude<Kind, 'ring'>, string> = { bracelet: 'adj', stone: 'one' };
 const KNOWN_STONES = Object.keys(STONES);
 
-// Vercel rejects request bodies above 4.5 MB, and /api/upload accepts up to 8 MB.
-// Photos larger than this are resized in the browser before upload.
-const SHRINK_ABOVE_BYTES = 3 * 1024 * 1024;
-const TARGET_BYTES = 3.5 * 1024 * 1024;
-const MAX_SIDE = 2400;
-
 const labelClass = 'block uppercase tracking-wider font-semibold text-ink mb-1';
 const inputClass =
   'w-full px-3 py-2 min-h-[44px] border border-line text-base md:text-sm bg-white focus:outline-none focus:border-ink';
@@ -121,49 +116,6 @@ function sortSizes(sizes: string[]) {
     return at === -1 ? RING_SIZES.length : at;
   };
   return [...sizes].sort((a, b) => rank(a) - rank(b));
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
-  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-}
-
-/** Resizes big photos so they fit under the hosting body limit. Small files pass through untouched. */
-async function shrinkImage(file: File): Promise<File> {
-  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
-
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size <= SHRINK_ABOVE_BYTES) {
-      bitmap.close();
-      return file;
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      bitmap.close();
-      return file;
-    }
-    ctx.fillStyle = '#ffffff'; // JPEG has no transparency
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-
-    let quality = 0.88;
-    let blob = await canvasToBlob(canvas, quality);
-    while (blob && blob.size > TARGET_BYTES && quality > 0.5) {
-      quality -= 0.1;
-      blob = await canvasToBlob(canvas, quality);
-    }
-    if (!blob || blob.size >= file.size) return file;
-
-    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
-  } catch {
-    return file;
-  }
 }
 
 export default function ProductForm({ mode, productId, initial, stoneDeltas = {} }: ProductFormProps) {
@@ -294,25 +246,11 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
       const file = files[i];
       setUploadStatus(`Uploading ${i + 1} of ${files.length}...`);
 
-      if (!file.type.startsWith('image/')) {
-        problems.push(`${file.name} is not an image.`);
-        continue;
-      }
-
       try {
-        const prepared = await shrinkImage(file);
-        const body = new FormData();
-        body.append('file', prepared);
-
-        const res = await fetch('/api/upload', { method: 'POST', body });
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok || !data.url) {
-          throw new Error(
-            res.status === 413 ? 'The photo is too large for the server.' : data.error || 'Upload failed.'
-          );
-        }
-        setValues((v) => (v.photos.includes(data.url) ? v : { ...v, photos: [...v.photos, data.url] }));
+        const uploaded = await uploadAdminImage(file, 'products');
+        setValues((v) =>
+          v.photos.includes(uploaded.url) ? v : { ...v, photos: [...v.photos, uploaded.url] }
+        );
       } catch (err: unknown) {
         problems.push(`${file.name}: ${err instanceof Error ? err.message : 'Upload failed.'}`);
       }
@@ -433,8 +371,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
   /* ---------- render ---------- */
 
   const chipClass = (selected: boolean) =>
-    `px-3.5 min-h-[44px] inline-flex items-center text-xs border transition ${
-      selected ? 'bg-ink text-white border-ink font-semibold' : 'border-line text-ink-2 hover:border-neutral-400'
+    `px-3.5 min-h-[44px] inline-flex items-center text-xs border transition ${selected ? 'bg-ink text-white border-ink font-semibold' : 'border-line text-ink-2 hover:border-neutral-400'
     }`;
 
   return (
@@ -587,9 +524,8 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
             <div className="flex flex-wrap items-center gap-3">
               <label
                 htmlFor="pf-photos"
-                className={`inline-flex items-center min-h-[44px] px-4 py-2.5 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${
-                  uploading ? 'opacity-40 pointer-events-none' : ''
-                }`}
+                className={`inline-flex items-center min-h-[44px] px-4 py-2.5 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${uploading ? 'opacity-40 pointer-events-none' : ''
+                  }`}
               >
                 {uploading ? 'Uploading...' : 'Upload photos'}
               </label>

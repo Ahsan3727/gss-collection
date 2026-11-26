@@ -1,12 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { uploadAdminImage } from '@/lib/client-image';
 import { useSave } from '@/lib/use-save';
-import type { StoreSettingsData } from '@/lib/types';
+import { DEFAULT_HERO, HERO_LIMITS, type HeroSettings, type StoreSettingsData } from '@/lib/types';
+
+function withHeroDefaults(settings: StoreSettingsData): StoreSettingsData & { hero: HeroSettings } {
+  return {
+    ...settings,
+    hero: {
+      ...DEFAULT_HERO,
+      ...(settings.hero || {}),
+    },
+  };
+}
 
 export default function SettingsClient({ initialSettings }: { initialSettings: StoreSettingsData }) {
-  const [savedSnapshot, setSavedSnapshot] = useState<StoreSettingsData>(initialSettings);
-  const [form, setForm] = useState<StoreSettingsData>(initialSettings);
+  const initialNormalized = useMemo(() => withHeroDefaults(initialSettings), [initialSettings]);
+  const [savedSnapshot, setSavedSnapshot] = useState(initialNormalized);
+  const [form, setForm] = useState(initialNormalized);
+  const [heroUploading, setHeroUploading] = useState(false);
+  const [heroUploadError, setHeroUploadError] = useState('');
   const { status, error, run, retry, reset } = useSave();
 
   const dirty = useMemo(
@@ -25,7 +39,33 @@ export default function SettingsClient({ initialSettings }: { initialSettings: S
   }, [dirty]);
 
   const inputClass =
-    'w-full px-3 py-2 min-h-[44px] border border-line text-base md:text-sm bg-white focus:outline-none focus:border-ink';
+  'w-full min-w-0 px-3 py-2 min-h-[44px] border border-line text-base md:text-sm bg-white focus:outline-none focus:border-ink';
+
+  const updateHero = (patch: Partial<HeroSettings>) => {
+    reset();
+    setHeroUploadError('');
+    setForm((prev) => ({
+      ...prev,
+      hero: { ...prev.hero, ...patch },
+    }));
+  };
+
+  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setHeroUploadError('');
+    setHeroUploading(true);
+    try {
+      const uploaded = await uploadAdminImage(file, 'hero');
+      updateHero({ imageUrl: uploaded.url });
+    } catch (err: unknown) {
+      setHeroUploadError(err instanceof Error ? err.message : 'Hero image upload failed.');
+    } finally {
+      setHeroUploading(false);
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +76,14 @@ export default function SettingsClient({ initialSettings }: { initialSettings: S
         freeShippingFrom: Math.max(0, Number(form.freeShippingFrom) || 0),
         moderateReviews: Boolean(form.moderateReviews),
         announcements: form.announcements.map((a) => a.trim()).filter(Boolean),
+        hero: {
+          eyebrow: form.hero.eyebrow.trim(),
+          headline: form.hero.headline.trim(),
+          description: form.hero.description.trim(),
+          imageUrl: form.hero.imageUrl.trim(),
+          imageAlt: (form.hero.imageAlt || '').trim(),
+          linkHref: (form.hero.linkHref || '').trim() || '/collections/all',
+        },
         contact: {
           email: form.contact.email.trim(),
           phone: form.contact.phone.trim(),
@@ -57,7 +105,7 @@ export default function SettingsClient({ initialSettings }: { initialSettings: S
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not save settings');
 
-      const nextSettings: StoreSettingsData = data.settings ? { ...form, ...data.settings } : form;
+      const nextSettings = withHeroDefaults(data.settings ? { ...form, ...data.settings } : form);
       setForm(nextSettings);
       setSavedSnapshot(nextSettings);
     });
@@ -92,6 +140,176 @@ export default function SettingsClient({ initialSettings }: { initialSettings: S
           You have unsaved changes.
         </p>
       )}
+
+      {/* Homepage Hero Banner */}
+      <div className="bg-white border border-line p-5 md:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
+          <h2 className="font-display text-lg font-medium">Homepage Hero Banner</h2>
+          <button
+            type="button"
+            onClick={() =>
+              updateHero({
+                eyebrow: DEFAULT_HERO.eyebrow,
+                headline: DEFAULT_HERO.headline,
+                description: DEFAULT_HERO.description,
+              })
+            }
+            className="text-xs uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline min-h-[44px] inline-flex items-center"
+          >
+            Restore Default Copy
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+          <div className="md:col-span-5 space-y-3 min-w-0">
+            <span className="block uppercase tracking-wider font-semibold text-ink">
+              Hero Picture
+            </span>
+            <div className="relative aspect-[4/3] sm:aspect-square w-full bg-ink text-white border border-line overflow-hidden flex items-center justify-center">
+              {form.hero.imageUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={form.hero.imageUrl}
+                  alt={form.hero.imageAlt || form.hero.headline}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="p-4 text-center">
+                  <span className="font-display text-xl block mb-1">Automatic Spotlight</span>
+                  <span className="text-xs text-neutral-300">
+                    Showing top featured product photo until you upload a custom picture.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {heroUploadError && (
+              <p role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 p-2.5">
+                {heroUploadError}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                htmlFor="st-hero-upload"
+                className={`inline-flex items-center justify-center min-h-[44px] px-4 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${heroUploading ? 'opacity-40 pointer-events-none' : ''
+                  }`}
+              >
+                {heroUploading ? 'Uploading...' : form.hero.imageUrl ? 'Replace Picture' : 'Upload Picture'}
+              </label>
+              <input
+                id="st-hero-upload"
+                type="file"
+                accept="image/*"
+                disabled={heroUploading}
+                onChange={handleHeroImageUpload}
+                className="sr-only"
+              />
+              {form.hero.imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => updateHero({ imageUrl: '', imageAlt: '' })}
+                  className="min-h-[44px] px-3 border border-line text-red-700 hover:border-red-700 uppercase tracking-wider font-semibold"
+                >
+                  Use Default Ring
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="md:col-span-7 space-y-4 min-w-0">
+            <div>
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <label htmlFor="st-hero-eyebrow" className="block uppercase tracking-wider font-semibold text-ink">
+                  Eyebrow Line
+                </label>
+                <span className="text-xs text-ink-2">
+                  {form.hero.eyebrow.length}/{HERO_LIMITS.eyebrowMax}
+                </span>
+              </div>
+              <input
+                id="st-hero-eyebrow"
+                type="text"
+                maxLength={HERO_LIMITS.eyebrowMax}
+                value={form.hero.eyebrow}
+                onChange={(e) => updateHero({ eyebrow: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <label htmlFor="st-hero-headline" className="block uppercase tracking-wider font-semibold text-ink">
+                  Main Headline *
+                </label>
+                <span className="text-xs text-ink-2">
+                  {form.hero.headline.length}/{HERO_LIMITS.headlineMax}
+                </span>
+              </div>
+              <input
+                id="st-hero-headline"
+                type="text"
+                required
+                minLength={HERO_LIMITS.headlineMin}
+                maxLength={HERO_LIMITS.headlineMax}
+                value={form.hero.headline}
+                onChange={(e) => updateHero({ headline: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <label htmlFor="st-hero-desc" className="block uppercase tracking-wider font-semibold text-ink">
+                  Description Text
+                </label>
+                <span className="text-xs text-ink-2">
+                  {form.hero.description.length}/{HERO_LIMITS.descriptionMax}
+                </span>
+              </div>
+              <textarea
+                id="st-hero-desc"
+                rows={3}
+                maxLength={HERO_LIMITS.descriptionMax}
+                value={form.hero.description}
+                onChange={(e) => updateHero({ description: e.target.value })}
+                className="w-full min-w-0 px-3 py-2 border border-line text-base md:text-sm bg-white focus:outline-none focus:border-ink resize-y"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="st-hero-link" className="block uppercase tracking-wider font-semibold text-ink mb-1">
+                  Picture Click Link
+                </label>
+                <input
+                  id="st-hero-link"
+                  type="text"
+                  maxLength={HERO_LIMITS.linkHrefMax}
+                  placeholder="/collections/all"
+                  value={form.hero.linkHref || ''}
+                  onChange={(e) => updateHero({ linkHref: e.target.value })}
+                  className={`${inputClass} font-mono`}
+                />
+              </div>
+              <div>
+                <label htmlFor="st-hero-alt" className="block uppercase tracking-wider font-semibold text-ink mb-1">
+                  Picture Alt Text
+                </label>
+                <input
+                  id="st-hero-alt"
+                  type="text"
+                  maxLength={HERO_LIMITS.imageAltMax}
+                  placeholder="Optional accessibility description"
+                  value={form.hero.imageAlt || ''}
+                  onChange={(e) => updateHero({ imageAlt: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Brand Identity */}
       <div className="bg-white border border-line p-5 md:p-6 space-y-4">
@@ -306,7 +524,7 @@ export default function SettingsClient({ initialSettings }: { initialSettings: S
 
       <button
         type="submit"
-        disabled={status === 'saving'}
+        disabled={status === 'saving' || heroUploading}
         className="w-full bg-ink text-white min-h-[48px] px-6 uppercase tracking-[0.2em] font-semibold text-xs hover:bg-neutral-800 disabled:opacity-40 transition"
       >
         {status === 'saving' ? 'Saving Settings...' : 'Save Settings'}

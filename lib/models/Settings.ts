@@ -21,6 +21,14 @@ export interface ISettings extends Document {
     accountTitle: string;
     accountNumber: string;
   };
+  hero?: {
+    eyebrow: string;
+    headline: string;
+    description: string;
+    imageUrl: string;
+    imageAlt?: string;
+    linkHref?: string;
+  };
   spotlightId?: string;
   moderateReviews: boolean;
 }
@@ -79,6 +87,18 @@ const SettingsSchema = new Schema<ISettings>(
       bankName: { type: String, default: 'Meezan Bank' },
       accountTitle: { type: String, default: 'GSS Collection' },
       accountNumber: { type: String, default: '' },
+    },
+    hero: {
+      eyebrow: { type: String, default: 'Handcrafted in 925 Sterling Silver' },
+      headline: { type: String, default: 'Natural untreated gemstones, set for a lifetime.' },
+      description: {
+        type: String,
+        default:
+          'Individually crafted with hallmarked silver and earth-mined stones. From bold signets to delicate solitaires.',
+      },
+      imageUrl: { type: String, default: '' },
+      imageAlt: { type: String, default: '' },
+      linkHref: { type: String, default: '/collections/all' },
     },
     spotlightId: { type: String, default: 'p01' },
     moderateReviews: { type: Boolean, default: false },

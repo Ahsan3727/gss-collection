@@ -22,6 +22,7 @@ import { Review } from '@/lib/models/Review';
 import { AuditLog } from '@/lib/models/AuditLog';
 import { Message } from '@/lib/models/Message';
 import { isAdminRole } from '@/lib/roles';
+import { DEFAULT_HERO, loadSettings } from '@/lib/settings';
 
 import { POST as createOrder } from '@/app/api/orders/route';
 import { GET as trackOrder } from '@/app/api/orders/track/route';
@@ -428,12 +429,61 @@ describe('Storefront & Order API integration (MongoMemoryServer)', () => {
     const discList = await getAdminDiscounts();
     expect((await discList.json()).discounts.length).toBeGreaterThanOrEqual(2);
 
+    // Legacy Settings docs without `hero` merge defaults cleanly in loadSettings()
+    const legacyLoaded = await loadSettings();
+    expect(legacyLoaded.hero?.headline).toBe(DEFAULT_HERO.headline);
+    expect(legacyLoaded.hero?.imageUrl).toBe('');
+
     const patchSettings = await patchAdminSettings(
-      jsonRequest('http://localhost', 'PATCH', { freeShippingFrom: 18000 })
+      jsonRequest('http://localhost', 'PATCH', {
+        freeShippingFrom: 18000,
+        hero: {
+          eyebrow: 'Limited Winter Release',
+          headline: 'Bespoke Turquoise Signets',
+          description: 'Hand-carved 925 sterling silver set with earth-mined stones.',
+          imageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/winter-hero.jpg',
+          imageAlt: 'Bespoke turquoise signet banner',
+          linkHref: '/collections/gents',
+        },
+      })
     );
     expect(patchSettings.status).toBe(200);
     const readSettings = await getAdminSettings();
-    expect((await readSettings.json()).settings.freeShippingFrom).toBe(18000);
+    const readJson = await readSettings.json();
+    expect(readJson.settings.freeShippingFrom).toBe(18000);
+    expect(readJson.settings.hero.headline).toBe('Bespoke Turquoise Signets');
+    expect(readJson.settings.hero.imageUrl).toBe(
+      'https://res.cloudinary.com/demo/image/upload/v1/winter-hero.jpg'
+    );
+
+    const updatedLoaded = await loadSettings();
+    expect(updatedLoaded.hero?.eyebrow).toBe('Limited Winter Release');
+    expect(updatedLoaded.hero?.linkHref).toBe('/collections/gents');
+
+    // Untrusted external hero image domains and empty headlines are rejected
+    const badImageRes = await patchAdminSettings(
+      jsonRequest('http://localhost', 'PATCH', {
+        hero: {
+          eyebrow: 'Studio',
+          headline: 'Valid Headline Text',
+          description: 'Description',
+          imageUrl: 'https://untrusted.example.com/hero.jpg',
+        },
+      })
+    );
+    expect(badImageRes.status).toBe(400);
+
+    const badHeadlineRes = await patchAdminSettings(
+      jsonRequest('http://localhost', 'PATCH', {
+        hero: {
+          eyebrow: 'Studio',
+          headline: 'Hi',
+          description: 'Description',
+          imageUrl: '',
+        },
+      })
+    );
+    expect(badHeadlineRes.status).toBe(400);
 
     await submitContact(
       jsonRequest('http://localhost/api/contact', 'POST', {

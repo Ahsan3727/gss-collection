@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
 import { Settings } from '@/lib/models/Settings';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
+import { DEFAULT_HERO } from '@/lib/settings';
+import { HeroSettingsSchema } from '@/lib/types';
 
 const settingsPatchSchema = z.object({
   storeName: z.string().min(1).max(120).optional(),
@@ -12,6 +14,7 @@ const settingsPatchSchema = z.object({
   freeShippingFrom: z.number().nonnegative().optional(),
   moderateReviews: z.boolean().optional(),
   announcements: z.array(z.string().max(240)).max(10).optional(),
+  hero: HeroSettingsSchema.optional(),
   contact: z
     .object({
       email: z.string().max(160).optional(),
@@ -75,11 +78,20 @@ export async function PATCH(req: Request) {
     if (body.bank) {
       settings.bank = { ...settings.bank, ...body.bank };
     }
+    if (body.hero) {
+      const existingHero = settings.hero ? JSON.parse(JSON.stringify(settings.hero)) : {};
+      settings.hero = {
+        ...DEFAULT_HERO,
+        ...existingHero,
+        ...body.hero,
+      };
+    }
 
     await settings.save();
     await logAdminAction(auth.user.email, 'settings_update', 'Settings', 'singleton', body);
 
     revalidateTag('settings');
+    revalidatePath('/');
 
     return NextResponse.json({ success: true, settings: JSON.parse(JSON.stringify(settings)) });
   } catch (err: unknown) {

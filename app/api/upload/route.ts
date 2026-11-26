@@ -33,6 +33,8 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
+    const requestedFolder = String(formData.get('folder') || 'products');
+    const folder = requestedFolder === 'hero' ? 'gss/hero' : 'gss/products';
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
@@ -52,7 +54,7 @@ export async function POST(req: Request) {
     const uploadPromise = new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          folder: 'gss/products',
+          folder,
           transformation: [{ quality: 'auto', fetch_format: 'auto' }],
         },
         (error, result) => {
