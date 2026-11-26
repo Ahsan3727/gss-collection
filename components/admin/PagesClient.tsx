@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 
 export interface PageRecord {
   _id?: string;
@@ -36,7 +37,8 @@ const FOOTER_LINKS: Record<string, string> = {
 };
 
 const labelClass = 'block uppercase tracking-wider font-semibold text-ink mb-1';
-const inputClass = 'w-full px-3 py-2 border border-line text-sm focus:outline-none focus:border-ink';
+const inputClass =
+  'w-full px-3 py-2 min-h-[44px] border border-line text-base md:text-sm bg-white focus:outline-none focus:border-ink';
 const cardClass = 'bg-white border border-line shadow-sm';
 const cardTitleClass = 'font-display text-xl font-normal text-ink';
 
@@ -144,11 +146,29 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
 
   /* ---------- open / close ---------- */
 
-  const confirmLeave = () => !dirty || window.confirm('You have unsaved changes. Leave without saving?');
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    destructive: boolean;
+    onConfirm: () => void;
+  } | null>(null);
 
-  const open = (page: PageRecord) => {
-    if (isEdit && activeSlug === page.slug) return;
-    if (!confirmLeave()) return;
+  const runIfClean = (action: () => void) => {
+    if (!dirty) {
+      action();
+      return;
+    }
+    setPendingConfirm({
+      title: 'Leave without saving?',
+      description: 'You have unsaved changes on this page. Leaving will discard them.',
+      confirmLabel: 'Leave page',
+      destructive: true,
+      onConfirm: action,
+    });
+  };
+
+  const applyOpen = (page: PageRecord) => {
     const next = toValues(page);
     setMode('edit');
     setActiveSlug(page.slug);
@@ -161,12 +181,12 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
     scrollPending.current = true;
   };
 
-  const openNew = () => {
-    if (isNew && !dirty) {
-      if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({ block: 'start' });
-      return;
-    }
-    if (!confirmLeave()) return;
+  const open = (page: PageRecord) => {
+    if (isEdit && activeSlug === page.slug) return;
+    runIfClean(() => applyOpen(page));
+  };
+
+  const applyOpenNew = () => {
     setMode('new');
     setActiveSlug('');
     setValues(BLANK);
@@ -178,24 +198,40 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
     scrollPending.current = true;
   };
 
+  const openNew = () => {
+    if (isNew && !dirty) {
+      if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    runIfClean(applyOpenNew);
+  };
+
   const closeEditor = () => {
-    if (!confirmLeave()) return;
-    setMode('none');
-    setActiveSlug('');
-    setValues(BLANK);
-    setSaved(BLANK);
-    setError('');
-    setMessage('');
+    runIfClean(() => {
+      setMode('none');
+      setActiveSlug('');
+      setValues(BLANK);
+      setSaved(BLANK);
+      setError('');
+      setMessage('');
+    });
   };
 
   const discard = () => {
     if (!dirty) return;
-    if (!window.confirm('Discard your changes?')) return;
-    setValues(saved);
-    setSlugTouched(isEdit);
-    setSlugLocked(isEdit);
-    setError('');
-    setMessage('');
+    setPendingConfirm({
+      title: 'Discard changes?',
+      description: 'Revert this page back to the last saved version.',
+      confirmLabel: 'Discard',
+      destructive: true,
+      onConfirm: () => {
+        setValues(saved);
+        setSlugTouched(isEdit);
+        setSlugLocked(isEdit);
+        setError('');
+        setMessage('');
+      },
+    });
   };
 
   /* ---------- field handlers ---------- */
@@ -219,27 +255,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
     return '';
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saving || mode === 'none') return;
-
-    setError('');
-    setMessage('');
-
-    const problem = validate();
-    if (problem) {
-      setError(problem);
-      return;
-    }
-
-    if (slugChanged && footerLabel) {
-      const ok = window.confirm(
-        `The shop footer links to /pages/${activeSlug} ("${footerLabel}"). ` +
-          `If you save the new address, that footer link will show "not found". Save anyway?`
-      );
-      if (!ok) return;
-    }
-
+  const submitPageSave = async () => {
     const payload = {
       slug: effectiveSlug,
       title: values.title.trim(),
@@ -275,11 +291,42 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
       setSlugTouched(true);
       setSlugLocked(true);
       setMessage(isNew ? 'Page created.' : 'Changes saved.');
-    } catch (err: any) {
-      setError(err?.message || 'The page could not be saved.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'The page could not be saved.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving || mode === 'none') return;
+
+    setError('');
+    setMessage('');
+
+    const problem = validate();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+
+    if (slugChanged && footerLabel) {
+      setPendingConfirm({
+        title: 'Update footer-linked URL?',
+        description:
+          `The shop footer links to /pages/${activeSlug} ("${footerLabel}"). ` +
+          `If you save the new address, that footer link will show "not found". Save anyway?`,
+        confirmLabel: 'Save anyway',
+        destructive: true,
+        onConfirm: () => {
+          void submitPageSave();
+        },
+      });
+      return;
+    }
+
+    await submitPageSave();
   };
 
   /* ---------- derived text ---------- */
@@ -302,7 +349,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
           <button
             type="button"
             onClick={openNew}
-            className="bg-ink text-white px-4 py-2 text-xs uppercase tracking-wider font-semibold hover:bg-neutral-800 transition whitespace-nowrap"
+            className="bg-ink text-white px-4 min-h-[44px] text-xs uppercase tracking-wider font-semibold hover:bg-neutral-800 transition whitespace-nowrap"
           >
             Add page
           </button>
@@ -323,11 +370,11 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                     type="button"
                     onClick={() => open(page)}
                     aria-current={active ? 'true' : undefined}
-                    className="flex-1 min-w-0 text-left px-4 py-3.5 hover:bg-neutral-50 transition"
+                    className="flex-1 min-w-0 min-h-[44px] text-left px-4 py-3.5 hover:bg-neutral-50 transition"
                   >
                     <span className="block text-sm font-medium text-ink truncate">{page.title}</span>
-                    <span className="block text-[11px] font-mono text-ink-2 truncate">/pages/{page.slug}</span>
-                    <span className="block text-[11px] text-ink-2 mt-0.5">
+                    <span className="block text-xs font-mono text-ink-2 truncate">/pages/{page.slug}</span>
+                    <span className="block text-xs text-ink-2 mt-0.5">
                       {footerLabelFor(page.slug) ? 'Linked in footer' : 'Not in footer'}
                       {page.updatedAt ? ` · Updated ${formatDate(page.updatedAt)}` : ''}
                     </span>
@@ -336,7 +383,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                     href={`/pages/${page.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 flex items-center text-[11px] uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline whitespace-nowrap"
+                    className="px-3 min-w-[44px] flex items-center justify-center text-xs uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline whitespace-nowrap"
                     aria-label={`View ${page.title} on the shop`}
                   >
                     View
@@ -363,14 +410,14 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
             <div className="flex flex-wrap items-baseline justify-between gap-3 pb-2 mb-4 border-b border-line">
               <h2 className={cardTitleClass}>
                 {isNew ? 'New page' : 'Edit page'}
-                {dirty && <span className="ml-3 text-[11px] font-sans font-semibold text-amber-800">Unsaved changes</span>}
+                {dirty && <span className="ml-3 text-xs font-sans font-semibold text-amber-800">Unsaved changes</span>}
               </h2>
               {isEdit && (
                 <a
                   href={`/pages/${activeSlug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline"
+                  className="uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline min-h-[44px] inline-flex items-center"
                 >
                   View live page ↗
                 </a>
@@ -398,7 +445,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   <label htmlFor="pg-title" className={labelClass}>
                     Title *
                   </label>
-                  <span className={`text-[11px] ${titleOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
+                  <span className={`text-xs ${titleOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
                     {values.title.length} / {TITLE_MAX}
                   </span>
                 </div>
@@ -410,7 +457,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   placeholder="e.g. Shipping & Returns Policy"
                   className={inputClass}
                 />
-                <p className="text-[11px] text-ink-2 mt-1">Shown as the heading at the top of the page.</p>
+                <p className="text-xs text-ink-2 mt-1">Shown as the heading at the top of the page.</p>
               </div>
 
               {/* Slug */}
@@ -436,17 +483,17 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                     <button
                       type="button"
                       onClick={() => setSlugLocked(false)}
-                      className="px-3 border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold whitespace-nowrap"
+                      className="px-3 min-h-[44px] border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold whitespace-nowrap"
                     >
                       Change
                     </button>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-2 mt-1">
+                <p className="text-xs text-ink-2 mt-1">
                   Page address: /pages/{effectiveSlug || '...'}
                 </p>
                 {isEdit && !slugLocked && (
-                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
                     {footerLabel ? (
                       <>
                         The shop footer links to /pages/{activeSlug} (&ldquo;{footerLabel}&rdquo;). If you change the
@@ -469,7 +516,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   <label htmlFor="pg-body" className={labelClass}>
                     Body *
                   </label>
-                  <span className={`text-[11px] ${bodyOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
+                  <span className={`text-xs ${bodyOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
                     {body.length.toLocaleString('en-US')} / {BODY_MAX.toLocaleString('en-US')}
                   </span>
                 </div>
@@ -480,13 +527,13 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   rows={16}
                   className={`${inputClass} leading-relaxed resize-y`}
                 />
-                <p className="text-[11px] text-ink-2 mt-1">
+                <p className="text-xs text-ink-2 mt-1">
                   Plain text only. Leave an empty line between paragraphs. A single line break is not kept, so the
                   lines on either side of it join into one paragraph.
                   {paragraphs.length > 0 && ` This page will show ${paragraphs.length} paragraph${paragraphs.length === 1 ? '' : 's'}.`}
                 </p>
                 {hasSingleBreaks && (
-                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
                     Some lines are separated by a single line break. On the shop they will run together as one
                     paragraph. Add an empty line between them to keep them apart.
                   </p>
@@ -499,7 +546,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   <label htmlFor="pg-meta" className={labelClass}>
                     Meta description
                   </label>
-                  <span className="text-[11px] text-ink-2">
+                  <span className="text-xs text-ink-2">
                     {metaLength} / about {META_SOFT_MAX}
                   </span>
                 </div>
@@ -510,7 +557,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   rows={2}
                   className={`${inputClass} resize-y`}
                 />
-                <p className="text-[11px] text-ink-2 mt-1">
+                <p className="text-xs text-ink-2 mt-1">
                   Optional. The short summary search engines show under the page title. If empty, a standard
                   sentence is used.
                 </p>
@@ -521,7 +568,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-ink text-white px-8 py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
+                className="bg-ink text-white px-8 min-h-[44px] py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
               >
                 {saving ? 'Saving...' : isNew ? 'Create page' : 'Save changes'}
               </button>
@@ -530,7 +577,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   type="button"
                   onClick={discard}
                   disabled={!dirty || saving}
-                  className="px-4 py-3 border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold disabled:opacity-40 transition"
+                  className="px-4 min-h-[44px] py-3 border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold disabled:opacity-40 transition"
                 >
                   Discard changes
                 </button>
@@ -539,7 +586,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                 type="button"
                 onClick={closeEditor}
                 disabled={saving}
-                className="sm:ml-auto text-ink-2 hover:text-ink underline uppercase tracking-wider font-semibold disabled:opacity-40"
+                className="sm:ml-auto min-h-[44px] px-2 text-ink-2 hover:text-ink underline uppercase tracking-wider font-semibold disabled:opacity-40"
               >
                 {isNew ? 'Cancel' : 'Close'}
               </button>
@@ -547,6 +594,18 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
           </form>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingConfirm)}
+        onOpenChange={(openState) => {
+          if (!openState) setPendingConfirm(null);
+        }}
+        title={pendingConfirm?.title || ''}
+        description={pendingConfirm?.description || ''}
+        confirmLabel={pendingConfirm?.confirmLabel || 'Confirm'}
+        destructive={pendingConfirm?.destructive ?? true}
+        onConfirm={() => pendingConfirm?.onConfirm()}
+      />
     </div>
   );
 }

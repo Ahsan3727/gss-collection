@@ -1,53 +1,60 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Discount } from '@/lib/models/Discount';
+import { loadSettings } from '@/lib/settings';
+import { computeDiscount, resolveShippingOption } from '@/lib/pricing';
+import { DiscountValidateInputSchema } from '@/lib/schemas';
+import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
 
 export async function POST(req: Request) {
   try {
-    const { code, subtotal } = await req.json();
-    if (!code || typeof code !== 'string') {
-      return NextResponse.json({ error: 'Please enter a discount code' }, { status: 400 });
+    const ip = clientIpFromRequest(req);
+    const limit = await rateLimit(`discount:${ip}`, 20, 300);
+    if (!limit.success) {
+      return rateLimitExceededResponse(limit.reset, 'Too many discount attempts. Please wait a few minutes.');
     }
 
+    const rawBody: unknown = await req.json();
+    const parsed = DiscountValidateInputSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Please enter a discount code' },
+        { status: 400 }
+      );
+    }
+
+    const { code, subtotal, country = 'PK', shippingMethodId = 'std' } = parsed.data;
+
     await connectDB();
-    const discount = await Discount.findOne({
-      code: code.trim().toUpperCase(),
-      active: true,
-    }).lean();
+    const [discount, settings] = await Promise.all([
+      Discount.findOne({
+        code: code.trim().toUpperCase(),
+        active: true,
+      }).lean(),
+      loadSettings(),
+    ]);
 
     if (!discount) {
       return NextResponse.json({ error: 'Invalid or expired promotional code' }, { status: 404 });
     }
 
-    if (discount.limit > 0 && discount.uses >= discount.limit) {
-      return NextResponse.json({ error: 'This discount code has reached its usage limit' }, { status: 400 });
-    }
+    const baseShipping = resolveShippingOption(settings, subtotal, country, shippingMethodId, false);
+    const calc = computeDiscount(discount, subtotal, baseShipping.price);
 
-    const currentSubtotal = Number(subtotal) || 0;
-    if (discount.minOrder > 0 && currentSubtotal < discount.minOrder) {
-      return NextResponse.json(
-        { error: `Minimum order amount of Rs. ${discount.minOrder.toLocaleString()} required for this code` },
-        { status: 400 }
-      );
-    }
-
-    let discountAmount = 0;
-    if (discount.type === 'pct') {
-      discountAmount = Math.round((currentSubtotal * discount.value) / 100);
-    } else if (discount.type === 'fixed') {
-      discountAmount = Math.min(currentSubtotal, discount.value);
-    } else if (discount.type === 'ship') {
-      discountAmount = 300; // Free shipping
+    if (!calc.valid) {
+      return NextResponse.json({ error: calc.reason }, { status: 400 });
     }
 
     return NextResponse.json({
       valid: true,
-      code: discount.code,
-      type: discount.type,
+      code: calc.code,
+      type: calc.type,
       value: discount.value,
-      discountAmount,
+      discountAmount: calc.amount,
+      freeShipping: calc.freeShipping,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error('[Discount Validate Error]:', err);
     return NextResponse.json({ error: 'Failed to validate discount code' }, { status: 500 });
   }
 }

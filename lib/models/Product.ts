@@ -95,6 +95,7 @@ const ProductSchema = new Schema<IProduct>(
 );
 
 ProductSchema.index({ title: 'text', desc: 'text', tags: 'text' });
+ProductSchema.index({ status: 1, createdAt: -1 });
 ProductSchema.index({ 'variants.sku': 1 });
 
 export const Product: Model<IProduct> =

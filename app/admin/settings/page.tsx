@@ -1,27 +1,22 @@
-import { connectDB } from '@/lib/db';
-import { getStoreSettings } from '@/lib/settings';
+import { loadSettings } from '@/lib/settings';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import SettingsClient from '@/components/admin/SettingsClient';
+import type { StoreSettingsData } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSettingsPage() {
-  await connectDB();
-  const settings = await getStoreSettings();
+  const settings: StoreSettingsData = await loadSettings();
 
   return (
-    <div className="max-w-site mx-auto px-4 md:px-6 py-10">
-      <div className="flex justify-between items-baseline border-b border-line pb-6 mb-8">
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-2">
-            Store Configuration
-          </span>
-          <h1 className="font-display text-3xl font-medium text-ink mt-1">
-            Store & Payment Settings
-          </h1>
-        </div>
-      </div>
+    <div className="max-w-site mx-auto px-4 md:px-6 py-8 md:py-10">
+      <AdminPageHeader
+        eyebrow="Store Configuration"
+        title="Store & Payment Settings"
+        subtitle="Changes go live on the storefront immediately."
+      />
 
-      <SettingsClient initialSettings={JSON.parse(JSON.stringify(settings))} />
+      <SettingsClient initialSettings={JSON.parse(JSON.stringify(settings)) as StoreSettingsData} />
     </div>
   );
 }

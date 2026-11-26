@@ -4,98 +4,142 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatMoney } from '@/lib/money';
+import { whatsappLink } from '@/lib/contact';
+import { useSave } from '@/lib/use-save';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
+import { FULFIL_STATUSES, type FulfilStatus, type OrderRecord } from '@/lib/types';
 
-export default function OrderDetailClient({ initialOrder }: { initialOrder: any }) {
-  const [order, setOrder] = useState(initialOrder);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState('');
+export default function OrderDetailClient({ initialOrder }: { initialOrder: OrderRecord }) {
+  const [order, setOrder] = useState<OrderRecord>(initialOrder);
   const [carrier, setCarrier] = useState(order.tracking?.carrier || 'TCS Express');
   const [trackingNum, setTrackingNum] = useState(order.tracking?.number || '');
   const [newNote, setNewNote] = useState('');
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
-  const updateOrder = async (updates: Record<string, any>) => {
-    setLoading(true);
-    setMsg('');
-    try {
+  const { status, error, run, retry } = useSave();
+
+  const updateOrder = (updates: Record<string, unknown>) =>
+    run(async () => {
       const res = await fetch(`/api/admin/orders/${order.orderNo}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed');
+      const data = (await res.json()) as { error?: string; order?: OrderRecord };
+      if (!res.ok || !data.order) {
+        throw new Error(data.error || 'Update failed');
+      }
       setOrder(data.order);
-      setMsg('Order status updated successfully.');
-      setNewNote('');
-    } catch (e: any) {
-      setMsg(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
+      if (updates.adminNote) setNewNote('');
+    });
+
+  const handleStatusClick = (nextStatus: FulfilStatus) => {
+    if (nextStatus === 'cancelled') {
+      setConfirmCancelOpen(true);
+      return;
     }
+    void updateOrder({ fulfil: nextStatus });
   };
 
+  const customerWaHref = whatsappLink(
+    order.contact.phone,
+    `Hello ${order.address.name}, your GSS Collection order ${order.orderNo} (${formatMoney(order.total)}) is confirmed.`
+  );
+
   return (
-    <div className="max-w-site mx-auto px-4 md:px-6 py-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line pb-6 mb-8 gap-4">
+    <div className="max-w-site mx-auto px-4 md:px-6 py-8 md:py-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line pb-6 mb-6 gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <Link href="/admin/orders" className="text-xs uppercase tracking-wider text-ink-3 hover:text-ink">
+            <Link
+              href="/admin/orders"
+              className="text-xs uppercase tracking-wider text-ink-2 hover:text-ink min-h-[44px] inline-flex items-center"
+            >
               ← Orders
             </Link>
-            <span className="text-neutral-300">/</span>
-            <span className="text-xs font-semibold text-ink uppercase tracking-wider">{order.orderNo}</span>
+            <span className="text-neutral-400">/</span>
+            <span className="text-xs font-semibold text-ink uppercase tracking-wider">
+              {order.orderNo}
+            </span>
           </div>
           <h1 className="font-display text-3xl font-medium text-ink mt-1">
             Order {order.orderNo}
           </h1>
-          <span className="text-xs text-ink-3">
-            Placed on {new Date(order.createdAt).toLocaleString('en-PK', { dateStyle: 'long', timeStyle: 'short' })}
+          <span className="text-xs text-ink-2">
+            Placed on{' '}
+            {new Date(order.createdAt).toLocaleString('en-PK', {
+              dateStyle: 'long',
+              timeStyle: 'short',
+            })}
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => window.print()}
-            className="border border-line bg-white text-ink px-4 py-2 text-xs uppercase tracking-wider font-semibold hover:border-ink transition"
-          >
-            Print Packing Slip
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="border border-line bg-white text-ink px-4 min-h-[44px] text-xs uppercase tracking-wider font-semibold hover:border-ink transition self-start sm:self-auto"
+        >
+          Print Packing Slip
+        </button>
       </div>
 
-      {msg && (
-        <div className="mb-6 p-3.5 bg-neutral-100 border border-neutral-300 text-xs font-medium text-ink">
-          {msg}
+      {status === 'saved' && (
+        <div role="status" className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 text-ok text-xs font-semibold">
+          ✓ Saved order changes.
+        </div>
+      )}
+      {status === 'error' && (
+        <div role="alert" className="mb-6 p-3.5 bg-red-50 border border-red-200 text-error text-xs font-semibold flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="underline font-bold uppercase tracking-wider min-h-[44px] px-2"
+          >
+            Retry
+          </button>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Order Items & Timeline */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Items Card */}
-          <div className="bg-white border border-line p-6 shadow-sm">
+          <div className="bg-white border border-line p-5 sm:p-6 shadow-sm">
             <h2 className="font-display text-xl font-medium text-ink mb-4 pb-3 border-b border-line">
               Purchased Jewellery ({order.items.length})
             </h2>
             <div className="divide-y divide-line">
-              {order.items.map((item: any, idx: number) => (
+              {order.items.map((item, idx) => (
                 <div key={idx} className="py-4 flex gap-4 items-center">
                   <div className="relative w-16 h-16 bg-ground border border-line flex-shrink-0 overflow-hidden">
                     {item.photo ? (
-                      <Image src={item.photo} alt={item.title} fill className="object-cover" />
+                      <Image
+                        src={item.photo}
+                        alt={item.title}
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                      />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[10px] text-ink-3">GSS</div>
+                      <div className="w-full h-full flex items-center justify-center text-xs text-ink-2">
+                        GSS
+                      </div>
                     )}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-sm text-ink">{item.title}</h3>
-                    <p className="text-xs text-ink-3 capitalize">
-                      Stone: <span className="text-ink font-semibold">{item.stone}</span> · Size: <span className="text-ink font-semibold">{item.size}</span> · SKU: <span className="font-mono text-[11px]">{item.sku || 'N/A'}</span>
+                    <p className="text-xs text-ink-2 capitalize">
+                      Stone: <span className="text-ink font-semibold">{item.stone}</span> · Size:{' '}
+                      <span className="text-ink font-semibold">{item.size}</span> · SKU:{' '}
+                      <span className="font-mono">{item.sku || 'N/A'}</span>
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="font-semibold text-sm text-ink block">{formatMoney(item.price * item.qty)}</span>
-                    <span className="text-xs text-ink-3">Qty: {item.qty} × {formatMoney(item.price)}</span>
+                  <div className="text-right shrink-0">
+                    <span className="font-semibold text-sm text-ink block">
+                      {formatMoney(item.price * item.qty)}
+                    </span>
+                    <span className="text-xs text-ink-2">
+                      Qty: {item.qty} × {formatMoney(item.price)}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -107,7 +151,7 @@ export default function OrderDetailClient({ initialOrder }: { initialOrder: any 
                 <span>{formatMoney(order.subtotal)}</span>
               </div>
               {order.discount > 0 && (
-                <div className="flex justify-between text-emerald-700">
+                <div className="flex justify-between text-ok">
                   <span>Discount ({order.discountCode || 'PROMO'})</span>
                   <span>−{formatMoney(order.discount)}</span>
                 </div>
@@ -123,19 +167,21 @@ export default function OrderDetailClient({ initialOrder }: { initialOrder: any 
             </div>
           </div>
 
-          {/* Fulfillment Timeline */}
-          <div className="bg-white border border-line p-6 shadow-sm">
+          <div className="bg-white border border-line p-5 sm:p-6 shadow-sm">
             <h2 className="font-display text-xl font-medium text-ink mb-4 pb-3 border-b border-line">
-              Fulfillment Log & Timeline
+              Fulfillment Log &amp; Timeline
             </h2>
             <div className="space-y-3">
-              {order.timeline?.map((event: any, i: number) => (
+              {order.timeline?.map((event, i) => (
                 <div key={i} className="flex items-start gap-3 text-xs">
-                  <span className="w-2 h-2 rounded-full bg-ink mt-1 flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-ink mt-1.5 flex-shrink-0" aria-hidden="true" />
                   <div>
                     <p className="text-ink font-medium">{event.text}</p>
-                    <span className="text-ink-3">
-                      {new Date(event.at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })}
+                    <span className="text-ink-2">
+                      {new Date(event.at).toLocaleString('en-PK', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </span>
                   </div>
                 </div>
@@ -144,22 +190,21 @@ export default function OrderDetailClient({ initialOrder }: { initialOrder: any 
           </div>
         </div>
 
-        {/* Right Column: Actions & Customer Info */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Fulfillment Action Panel */}
-          <div className="bg-white border border-line p-6 shadow-sm space-y-4">
+          <div className="bg-white border border-line p-5 sm:p-6 shadow-sm space-y-4">
             <h3 className="text-xs uppercase tracking-wider font-semibold text-ink border-b border-line pb-2">
               Update Fulfillment Status
             </h3>
             <div className="flex flex-wrap gap-2">
-              {['unfulfilled', 'processing', 'shipped', 'delivered', 'cancelled'].map((st) => (
+              {FULFIL_STATUSES.map((st) => (
                 <button
                   key={st}
-                  disabled={loading || order.fulfil === st}
-                  onClick={() => updateOrder({ fulfil: st })}
-                  className={`text-xs uppercase tracking-wider px-3 py-1.5 border transition ${
+                  type="button"
+                  disabled={status === 'saving' || order.fulfil === st}
+                  onClick={() => handleStatusClick(st)}
+                  className={`text-xs uppercase tracking-wider px-3.5 min-h-[44px] border transition ${
                     order.fulfil === st
-                      ? 'bg-ink text-white font-bold'
+                      ? 'bg-ink text-white font-bold border-ink'
                       : 'bg-ground text-ink-2 hover:border-ink'
                   }`}
                 >
@@ -169,52 +214,101 @@ export default function OrderDetailClient({ initialOrder }: { initialOrder: any 
             </div>
 
             <div className="pt-4 border-t border-line space-y-3">
-              <label className="block text-xs uppercase tracking-wider font-semibold text-ink">
+              <label htmlFor="admin-tracking-carrier" className="block text-xs uppercase tracking-wider font-semibold text-ink">
                 Assign Courier Tracking
               </label>
               <input
+                id="admin-tracking-carrier"
                 type="text"
                 value={carrier}
                 onChange={(e) => setCarrier(e.target.value)}
                 placeholder="Courier (e.g. TCS, Leopard, Trax)"
-                className="w-full px-3 py-2 border border-line text-xs focus:outline-none focus:border-ink"
+                className="w-full px-3 min-h-[44px] border border-line text-base focus:outline-none focus:border-ink"
               />
+              <label htmlFor="admin-tracking-num" className="sr-only">
+                Tracking or waybill number
+              </label>
               <input
+                id="admin-tracking-num"
                 type="text"
                 value={trackingNum}
                 onChange={(e) => setTrackingNum(e.target.value)}
                 placeholder="Tracking / Waybill #"
-                className="w-full px-3 py-2 border border-line text-xs focus:outline-none focus:border-ink"
+                className="w-full px-3 min-h-[44px] border border-line text-base focus:outline-none focus:border-ink"
               />
               <button
-                disabled={loading || !trackingNum.trim()}
-                onClick={() => updateOrder({ trackingCarrier: carrier, trackingNumber: trackingNum.trim() })}
-                className="w-full bg-ink text-white py-2 text-xs uppercase tracking-wider font-medium hover:bg-neutral-800 disabled:opacity-40"
+                type="button"
+                disabled={status === 'saving' || !trackingNum.trim()}
+                onClick={() =>
+                  void updateOrder({ trackingCarrier: carrier, trackingNumber: trackingNum.trim() })
+                }
+                className="w-full bg-ink text-white min-h-[44px] text-xs uppercase tracking-wider font-semibold hover:bg-neutral-800 disabled:opacity-40"
               >
-                Save Tracking #
+                {status === 'saving' ? 'Saving...' : 'Save Tracking #'}
               </button>
             </div>
           </div>
 
-          {/* Payment Status Panel */}
-          <div className="bg-white border border-line p-6 shadow-sm space-y-3 text-xs">
-            <h3 className="uppercase tracking-wider font-semibold text-ink border-b border-line pb-2 text-xs">
+          <div className="bg-white border border-line p-5 sm:p-6 shadow-sm space-y-3 text-xs">
+            <h3 className="uppercase tracking-wider font-semibold text-ink border-b border-line pb-2">
               Payment Status ({order.payMethod.toUpperCase()})
             </h3>
-            <div className="flex justify-between items-center">
-              <span>Status: <strong className="capitalize">{order.payStatus}</strong></span>
+            <div className="flex justify-between items-center gap-3">
+              <span>
+                Status: <strong className="capitalize">{order.payStatus}</strong>
+              </span>
               <button
-                disabled={loading}
-                onClick={() => updateOrder({ payStatus: order.payStatus === 'paid' ? 'pending' : 'paid' })}
-                className="text-xs uppercase tracking-wider underline text-ink hover:text-neutral-600 font-semibold"
+                type="button"
+                disabled={status === 'saving'}
+                onClick={() =>
+                  void updateOrder({ payStatus: order.payStatus === 'paid' ? 'pending' : 'paid' })
+                }
+                className="text-xs uppercase tracking-wider underline text-ink hover:text-ink-2 font-semibold min-h-[44px] px-2"
               >
                 Mark as {order.payStatus === 'paid' ? 'Pending' : 'Paid'}
               </button>
             </div>
           </div>
 
-          {/* Customer & Address Details */}
-          <div className="bg-white border border-line p-6 shadow-sm text-xs space-y-4">
+          {/* Internal Admin Notes */}
+          <div className="bg-white border border-line p-5 sm:p-6 shadow-sm space-y-3 text-xs">
+            <h3 className="uppercase tracking-wider font-semibold text-ink border-b border-line pb-2">
+              Internal Notes
+            </h3>
+            {order.adminNotes && order.adminNotes.length > 0 && (
+              <ul className="space-y-2 pb-2">
+                {order.adminNotes.map((n, i) => (
+                  <li key={i} className="bg-ground p-2.5 border border-line">
+                    <p className="text-ink">{n.text}</p>
+                    <span className="text-ink-2">
+                      {new Date(n.at).toLocaleDateString('en-PK')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <label htmlFor="admin-internal-note" className="sr-only">
+              Add internal note
+            </label>
+            <textarea
+              id="admin-internal-note"
+              rows={2}
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add note (e.g. Verified COD call)..."
+              className="w-full p-2.5 border border-line text-base focus:outline-none focus:border-ink"
+            />
+            <button
+              type="button"
+              disabled={status === 'saving' || !newNote.trim()}
+              onClick={() => void updateOrder({ adminNote: newNote.trim() })}
+              className="w-full border border-ink text-ink min-h-[44px] text-xs uppercase tracking-wider font-semibold hover:bg-ground disabled:opacity-40"
+            >
+              Add Note
+            </button>
+          </div>
+
+          <div className="bg-white border border-line p-5 sm:p-6 shadow-sm text-xs space-y-4">
             <h3 className="uppercase tracking-wider font-semibold text-ink border-b border-line pb-2">
               Customer Details
             </h3>
@@ -222,24 +316,41 @@ export default function OrderDetailClient({ initialOrder }: { initialOrder: any 
               <span className="font-semibold text-ink block">{order.address.name}</span>
               <p className="text-ink-2">{order.address.line1}</p>
               {order.address.line2 && <p className="text-ink-2">{order.address.line2}</p>}
-              <p className="text-ink-2">{order.address.city}, {order.address.state} {order.address.zip}</p>
+              <p className="text-ink-2">
+                {order.address.city}, {order.address.state} {order.address.zip}
+              </p>
               <p className="text-ink-2 font-medium">{order.address.country}</p>
             </div>
-            <div className="pt-2 border-t border-line space-y-1">
-              <div>Phone: <strong className="text-ink">{order.contact.phone}</strong></div>
-              <div>Email: <strong className="text-ink">{order.contact.email}</strong></div>
-              <a
-                href={`https://wa.me/${order.contact.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hello ${order.address.name}, this is GSS Collection regarding your order ${order.orderNo}.`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-2 text-emerald-800 font-semibold underline"
-              >
-                Message Customer on WhatsApp →
-              </a>
+            <div className="pt-2 border-t border-line space-y-1.5">
+              <div>
+                Phone: <strong className="text-ink">{order.contact.phone}</strong>
+              </div>
+              <div>
+                Email: <strong className="text-ink">{order.contact.email}</strong>
+              </div>
+              {customerWaHref && (
+                <a
+                  href={customerWaHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center min-h-[44px] text-ok font-semibold underline"
+                >
+                  Message Customer on WhatsApp →
+                </a>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmCancelOpen}
+        onOpenChange={setConfirmCancelOpen}
+        title={`Cancel ${order.orderNo}?`}
+        description="Cancelling this order will mark it as cancelled and automatically return purchased items back into stock inventory."
+        confirmLabel="Cancel Order & Restock"
+        onConfirm={() => void updateOrder({ fulfil: 'cancelled' })}
+      />
     </div>
   );
 }

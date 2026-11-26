@@ -1,4 +1,9 @@
 import type { Product } from '@/lib/models/Product';
+import {
+  buildVariantSku,
+  resolveVariantSelection,
+  type PricedProductLike,
+} from '@/lib/pricing';
 
 /**
  * Server-side stock handling for orders.
@@ -12,70 +17,33 @@ import type { Product } from '@/lib/models/Product';
 // `import type` keeps this file free of runtime imports, so it can be tested without a database.
 type ProductModel = Pick<typeof Product, 'updateOne'>;
 
-interface VariantLike {
-  sku?: string;
-  stone: string;
-  size: string;
-  price: number;
-  stock: number;
-}
+export const buildSku = buildVariantSku;
 
-interface ProductLike {
-  handle: string;
-  base: number;
-  variants?: VariantLike[];
-  stoneDeltas?: unknown;
-  inventory?: unknown;
-}
-
-/** Same format the product editor and the seed use when they build variants. */
-export function buildSku(handle: string, stone: string, size: string): string {
-  return `${handle.toUpperCase()}-${stone.toUpperCase()}-${size}`;
-}
-
-/**
- * Where a line item gets its stock from.
- * - `variant`: the product has a variants array (every product made by the editor or the seed).
- * - `legacy`: an older product with only the `inventory` map.
- * - `unavailable`: the product has variants but not this stone and size, for example a stone the
- *   owner removed after the customer filled the cart.
- */
 export type StockSource =
   | { mode: 'variant'; sku: string; stock: number; unitPrice: number }
   | { mode: 'legacy'; sku: string; stock: number; unitPrice: number }
   | { mode: 'unavailable' };
 
-function readMapValue(map: unknown, key: string): number | undefined {
-  if (!map) return undefined;
-  const value = map instanceof Map ? map.get(key) : (map as Record<string, unknown>)[key];
-  return typeof value === 'number' ? value : undefined;
-}
-
-export function resolveStockSource(product: ProductLike, stone: string, size: string): StockSource {
-  if (product.variants && product.variants.length > 0) {
-    const variant = product.variants.find((v) => v.stone === stone && v.size === size);
-    if (!variant) return { mode: 'unavailable' };
-    return {
-      mode: 'variant',
-      // The SKU stored on the variant is the one admin restock matches on.
-      sku: variant.sku || buildSku(product.handle, stone, size),
-      stock: variant.stock,
-      unitPrice: variant.price,
-    };
+export function resolveStockSource(
+  product: PricedProductLike,
+  stone: string,
+  size: string
+): StockSource {
+  const resolved = resolveVariantSelection(product, stone, size);
+  if (resolved.mode === 'unavailable' || resolved.price === null) {
+    return { mode: 'unavailable' };
   }
-
-  const delta = readMapValue(product.stoneDeltas, stone) ?? 0;
   return {
-    mode: 'legacy',
-    sku: buildSku(product.handle, stone, size),
-    stock: readMapValue(product.inventory, `${stone}:${size}`) ?? 0,
-    unitPrice: product.base + delta,
+    mode: resolved.mode,
+    sku: resolved.sku,
+    stock: resolved.stock,
+    unitPrice: resolved.price,
   };
 }
 
 export interface StockTaken {
   /** The product's Mongo `_id`. */
-  dbId: any;
+  dbId: unknown;
   mode: 'variant' | 'legacy';
   stone: string;
   size: string;
@@ -89,7 +57,7 @@ export interface StockTaken {
  */
 export async function takeStock(
   model: ProductModel,
-  dbId: any,
+  dbId: unknown,
   mode: 'variant' | 'legacy',
   stone: string,
   size: string,
@@ -114,7 +82,7 @@ export async function takeStock(
 /** Puts stock back for one line item (failed order, or an order the owner cancels). */
 export async function restoreStock(
   model: ProductModel,
-  dbId: any,
+  dbId: unknown,
   mode: 'variant' | 'legacy',
   stone: string,
   size: string,

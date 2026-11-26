@@ -23,7 +23,6 @@ export default function ProductCard({ product }: ProductCardProps) {
   const photoUrl = product.photos?.[0];
   const hasPhoto = Boolean(photoUrl && photoUrl.trim().length > 0);
 
-  // Category-aware label
   let categoryLabel = '925 Sterling Silver';
   if (product.kind === 'stone' || product.cat === 'gems') {
     categoryLabel = 'Natural Gemstone · Untreated';
@@ -52,29 +51,29 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
 
         {product.compareAt && product.compareAt > product.base && (
-          <span className="absolute top-2 left-2 bg-ink text-white text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5">
+          <span className="absolute top-2 left-2 bg-ink text-white text-xs font-semibold uppercase tracking-wider px-2 py-0.5">
             Sale
           </span>
         )}
       </Link>
 
-      <div className="pt-3.5 pb-1 flex flex-col flex-1">
-        <h3 className="text-[14px] font-medium text-ink group-hover:underline underline-offset-4 line-clamp-1">
+      <div className="pt-3 pb-1 flex flex-col flex-1">
+        <h3 className="text-sm font-medium text-ink group-hover:underline underline-offset-4 line-clamp-1">
           <Link href={`/products/${product.handle}`}>{product.title}</Link>
         </h3>
-        
+
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-[13px] font-semibold text-ink">
+          <span className="text-sm font-semibold text-ink">
             {formatMoney(product.base)}
           </span>
           {product.compareAt && product.compareAt > product.base && (
-            <span className="text-[12px] text-ink-2 line-through">
+            <span className="text-xs text-ink-2 line-through">
               {formatMoney(product.compareAt)}
             </span>
           )}
         </div>
 
-        <p className="text-[11px] uppercase tracking-wider text-ink-2 mt-1">
+        <p className="text-xs uppercase tracking-wider text-ink-2 mt-1">
           {categoryLabel}
         </p>
       </div>

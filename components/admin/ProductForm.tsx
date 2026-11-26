@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { STONES, SIZE_MM } from '@/lib/constants';
 import { formatMoney } from '@/lib/money';
+import ConfirmDialog from '@/components/admin/ConfirmDialog';
 
 // Do not import from '@/lib/product-write' here: it pulls mongoose into the browser bundle.
 // The rules below mirror parseProductWrite(), which stays the final authority on the server.
@@ -68,7 +69,8 @@ const TARGET_BYTES = 3.5 * 1024 * 1024;
 const MAX_SIDE = 2400;
 
 const labelClass = 'block uppercase tracking-wider font-semibold text-ink mb-1';
-const inputClass = 'w-full px-3 py-2 border border-line text-sm focus:outline-none focus:border-ink';
+const inputClass =
+  'w-full px-3 py-2 min-h-[44px] border border-line text-base md:text-sm bg-white focus:outline-none focus:border-ink';
 const cardClass = 'bg-white border border-line p-6 shadow-sm';
 const cardTitleClass = 'font-display text-xl font-normal text-ink mb-4 pb-2 border-b border-line';
 
@@ -169,6 +171,8 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
   const isEdit = mode === 'edit';
 
   const [values, setValues] = useState<ProductFormValues>(() => initial ?? blankValues());
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initial ?? blankValues()));
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [handleTouched, setHandleTouched] = useState(isEdit);
   const [handleLocked, setHandleLocked] = useState(isEdit);
   const [customStone, setCustomStone] = useState('');
@@ -177,6 +181,18 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
   const [uploadStatus, setUploadStatus] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
+  const dirty = useMemo(() => JSON.stringify(values) !== savedSnapshot, [values, savedSnapshot]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
 
   const busy = saving || uploading;
   const baseNum = Number(values.base);
@@ -297,8 +313,8 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
           );
         }
         setValues((v) => (v.photos.includes(data.url) ? v : { ...v, photos: [...v.photos, data.url] }));
-      } catch (err: any) {
-        problems.push(`${file.name}: ${err?.message || 'Upload failed.'}`);
+      } catch (err: unknown) {
+        problems.push(`${file.name}: ${err instanceof Error ? err.message : 'Upload failed.'}`);
       }
     }
 
@@ -374,30 +390,28 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
       if (!res.ok) throw new Error(data.error || 'The product could not be saved.');
 
       if (isEdit) {
-        setValues((v) => ({ ...v, handle: payload.handle }));
+        const nextValues = { ...values, handle: payload.handle };
+        setValues(nextValues);
+        setSavedSnapshot(JSON.stringify(nextValues));
         setHandleLocked(true);
         setMessage('Product saved.');
         scrollTop();
         router.refresh();
       } else {
+        setSavedSnapshot(JSON.stringify(values));
         router.push('/admin/products');
         router.refresh();
       }
-    } catch (err: any) {
-      setError(err?.message || 'The product could not be saved.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'The product could not be saved.');
       scrollTop();
     } finally {
       setSaving(false);
     }
   };
 
-  const handleArchive = async () => {
+  const performArchive = async () => {
     if (!isEdit || busy) return;
-    const ok = window.confirm(
-      'Archive this product? It disappears from the shop, and past orders keep working. ' +
-        'To bring it back later, set the status to Draft or Active and save.'
-    );
-    if (!ok) return;
 
     setError('');
     setMessage('');
@@ -406,10 +420,11 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
       const res = await fetch(`/api/products/${encodeURIComponent(productId || '')}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'The product could not be archived.');
+      setSavedSnapshot(JSON.stringify(values));
       router.push('/admin/products');
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || 'The product could not be archived.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'The product could not be archived.');
       scrollTop();
       setSaving(false);
     }
@@ -418,7 +433,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
   /* ---------- render ---------- */
 
   const chipClass = (selected: boolean) =>
-    `px-3 py-1.5 text-xs border transition ${
+    `px-3.5 min-h-[44px] inline-flex items-center text-xs border transition ${
       selected ? 'bg-ink text-white border-ink font-semibold' : 'border-line text-ink-2 hover:border-neutral-400'
     }`;
 
@@ -484,11 +499,11 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                     </button>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-3 mt-1">
+                <p className="text-xs text-ink-2 mt-1">
                   Shop address: /products/{slugify(values.handle || values.title) || '...'}
                 </p>
                 {isEdit && !handleLocked && (
-                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
                     Changing the handle changes the product link and its SKUs. Saved wishlists and bookmarks that use
                     the old link stop working, and a customer who already has this product in a cart should refresh
                     the page before ordering.
@@ -523,7 +538,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={photo} alt={`Product photo ${index + 1}`} className="w-full h-full object-cover" />
                       {index === 0 && (
-                        <span className="absolute top-2 left-2 bg-ink text-white text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5">
+                        <span className="absolute top-2 left-2 bg-ink text-white text-xs uppercase tracking-wider font-semibold px-2 py-0.5">
                           Cover
                         </span>
                       )}
@@ -535,7 +550,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                           onClick={() => movePhoto(index, -1)}
                           disabled={index === 0}
                           aria-label={`Move photo ${index + 1} earlier`}
-                          className="w-7 h-7 border border-line bg-white hover:border-ink disabled:opacity-30"
+                          className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
                         >
                           ←
                         </button>
@@ -544,18 +559,18 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                           onClick={() => movePhoto(index, 1)}
                           disabled={index === values.photos.length - 1}
                           aria-label={`Move photo ${index + 1} later`}
-                          className="w-7 h-7 border border-line bg-white hover:border-ink disabled:opacity-30"
+                          className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
                         >
                           →
                         </button>
                       </div>
-                      <div className="flex gap-2 text-[11px] font-semibold">
+                      <div className="flex gap-2 text-xs font-semibold">
                         {index !== 0 && (
-                          <button type="button" onClick={() => makeCover(index)} className="underline text-ink-2 hover:text-ink">
+                          <button type="button" onClick={() => makeCover(index)} className="min-h-[44px] px-1 underline text-ink-2 hover:text-ink">
                             Cover
                           </button>
                         )}
-                        <button type="button" onClick={() => removePhoto(index)} className="underline text-red-700 hover:text-red-900">
+                        <button type="button" onClick={() => removePhoto(index)} className="min-h-[44px] px-1 underline text-red-700 hover:text-red-900">
                           Remove
                         </button>
                       </div>
@@ -572,7 +587,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
             <div className="flex flex-wrap items-center gap-3">
               <label
                 htmlFor="pf-photos"
-                className={`inline-block px-4 py-2.5 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${
+                className={`inline-flex items-center min-h-[44px] px-4 py-2.5 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${
                   uploading ? 'opacity-40 pointer-events-none' : ''
                 }`}
               >
@@ -589,7 +604,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
               />
               {uploadStatus && <span className="text-ink-2">{uploadStatus}</span>}
             </div>
-            <p className="text-[11px] text-ink-3 mt-3">
+            <p className="text-xs text-ink-2 mt-3">
               The first photo is the cover shown in the shop. Large photos are resized in your browser before upload.
             </p>
           </section>
@@ -607,7 +622,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
               <div className="overflow-x-auto border border-line">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-ground border-b border-line uppercase text-[10px] tracking-wider text-ink-2">
+                    <tr className="bg-ground border-b border-line uppercase text-xs tracking-wider text-ink-2">
                       <th className="py-3 px-4 font-semibold">Stone</th>
                       {values.sizes.map((size) => (
                         <th key={size} className="py-3 px-3 font-semibold text-center">
@@ -621,7 +636,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                       <tr key={stone}>
                         <td className="py-3 px-4">
                           <span className="font-medium text-ink block">{stoneName(stone)}</span>
-                          {stonePrice(stone) && <span className="text-[11px] text-ink-3">{stonePrice(stone)}</span>}
+                          {stonePrice(stone) && <span className="text-xs text-ink-2">{stonePrice(stone)}</span>}
                         </td>
                         {values.sizes.map((size) => {
                           const key = stockKey(stone, size);
@@ -634,7 +649,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                                 value={values.stock[key] ?? 0}
                                 onChange={(e) => setStock(key, e.target.value)}
                                 aria-label={`Stock for ${stoneName(stone)}, ${sizeLabel(size)}`}
-                                className="w-16 px-2 py-1 border border-line text-xs font-semibold text-center focus:outline-none focus:border-ink"
+                                className="w-16 px-2 min-h-[44px] border border-line text-base md:text-xs font-semibold text-center focus:outline-none focus:border-ink"
                               />
                             </td>
                           );
@@ -672,29 +687,29 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-ink-3 mt-1">
+            <p className="text-xs text-ink-2 mt-1">
               {STATUS_OPTIONS.find((option) => option.value === values.status)?.hint}
             </p>
 
             <button
               type="submit"
               disabled={busy}
-              className="w-full mt-5 bg-ink text-white py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
+              className="w-full mt-5 bg-ink text-white min-h-[44px] py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
             >
               {saving ? 'Saving...' : isEdit ? 'Save changes' : 'Create product'}
             </button>
             <Link
               href="/admin/products"
-              className="block text-center mt-3 text-ink-2 underline hover:text-ink uppercase tracking-wider font-semibold"
+              className="flex items-center justify-center min-h-[44px] mt-2 text-ink-2 underline hover:text-ink uppercase tracking-wider font-semibold"
             >
               Cancel
             </Link>
             {isEdit && values.status !== 'archived' && (
               <button
                 type="button"
-                onClick={handleArchive}
+                onClick={() => setArchiveOpen(true)}
                 disabled={busy}
-                className="w-full mt-5 pt-4 border-t border-line text-red-700 hover:text-red-900 uppercase tracking-wider font-semibold disabled:opacity-40"
+                className="w-full mt-4 pt-4 min-h-[44px] border-t border-line text-red-700 hover:text-red-900 uppercase tracking-wider font-semibold disabled:opacity-40"
               >
                 Archive product
               </button>
@@ -739,7 +754,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                   ))}
                 </select>
                 {isEdit && (
-                  <p className="text-[11px] text-ink-3 mt-1">
+                  <p className="text-xs text-ink-2 mt-1">
                     Changing the kind resets the sizes, so check the stock table afterwards.
                   </p>
                 )}
@@ -764,7 +779,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                   onChange={(e) => setValues((v) => ({ ...v, base: e.target.value }))}
                   className={inputClass}
                 />
-                <p className="text-[11px] text-ink-3 mt-1">
+                <p className="text-xs text-ink-2 mt-1">
                   Some stones add to this price (for example Turquoise and Emerald). The stock table shows each final price.
                 </p>
               </div>
@@ -783,7 +798,7 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
                   className={inputClass}
                 />
                 {values.compareAt.trim() !== '' && hasBase && compareNum <= baseNum && (
-                  <p className="text-[11px] text-amber-800 mt-1">
+                  <p className="text-xs text-amber-800 mt-1">
                     The crossed-out price only shows when it is higher than the selling price.
                   </p>
                 )}
@@ -828,12 +843,12 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
               <button
                 type="button"
                 onClick={addCustomStone}
-                className="px-3 border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold"
+                className="px-4 min-h-[44px] border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold"
               >
                 Add
               </button>
             </div>
-            <p className="text-[11px] text-ink-3 mt-2">
+            <p className="text-xs text-ink-2 mt-2">
               A stone that is not in the list above shows with a default colour in the shop.
             </p>
           </section>
@@ -868,6 +883,17 @@ export default function ProductForm({ mode, productId, initial, stoneDeltas = {}
           </section>
         </div>
       </div>
+      <ConfirmDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        title="Archive this product?"
+        description="It disappears from the shop, and past orders keep working. To bring it back later, set the status to Draft or Active and save."
+        confirmLabel="Archive product"
+        destructive
+        onConfirm={() => {
+          void performArchive();
+        }}
+      />
     </form>
   );
 }

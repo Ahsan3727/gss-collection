@@ -4,7 +4,7 @@
 
 :root {
   --ink: #0B0B0B;
-  --ink-2: #585858;
+  --ink-2: #525252;
   --ground: #F5F5F3;
   --mist: #EEEEEC;
   --line: #E2E2DF;
@@ -13,17 +13,43 @@
   --ice: #D9D9D9;
   --error: #B3261E;
   --ok: #1B6B3A;
-  --gold: #B26B00;
+  --gold: #8A5300;
   --maxw: 1320px;
 }
 
 body {
   color: var(--ink);
   background: #ffffff;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  overflow-x: clip;
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: rgba(138, 83, 0, 0.14);
 }
 
 h1, h2, h3, .font-display {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

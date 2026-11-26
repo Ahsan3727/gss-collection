@@ -12,6 +12,34 @@ export default function ErrorBoundary({
 }) {
   useEffect(() => {
     console.error('Unhandled runtime error:', error);
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const payload = JSON.stringify({
+      message: (error?.message || 'Unhandled runtime error').slice(0, 500),
+      route: typeof window !== 'undefined' ? window.location.pathname.slice(0, 120) : undefined,
+      area:
+        typeof window !== 'undefined' && window.location.pathname.startsWith('/checkout')
+          ? 'checkout'
+          : typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+          ? 'admin'
+          : 'storefront',
+      digest: error?.digest,
+    });
+
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      const sent = navigator.sendBeacon(
+        '/api/monitoring',
+        new Blob([payload], { type: 'application/json' })
+      );
+      if (sent) return;
+    }
+
+    fetch('/api/monitoring', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      keepalive: true,
+    }).catch(() => undefined);
   }, [error]);
 
   return (

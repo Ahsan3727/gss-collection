@@ -1,38 +1,103 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import dynamic from 'next/dynamic';
+import { Inter, Cormorant_Garamond } from 'next/font/google';
 import './globals.css';
-import Header from '@/components/store/Header';
 import Footer from '@/components/store/Footer';
-import AnnouncementBar from '@/components/store/AnnouncementBar';
+import { StoreFooterShell, StoreHeaderShell } from '@/components/store/StoreShell';
 import { CartProvider } from '@/lib/cart-context';
-import CartDrawer from '@/components/store/CartDrawer';
 import WebVitals from '@/components/store/WebVitals';
+import { getStoreSettings } from '@/lib/settings';
+import { getSiteUrl } from '@/lib/env';
+import { formatDisplayPhone } from '@/lib/contact';
 
-export const metadata: Metadata = {
-  title: 'GSS Collection | Silver Rings & Natural Gemstones',
-  description: 'Handcrafted 925 sterling silver ladies rings, gents rings, and untreated natural gemstones.',
+const CartDrawer = dynamic(() => import('@/components/store/CartDrawer'), {
+  ssr: false,
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const siteUrl = getSiteUrl();
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0B0B0B',
 };
 
-export default function RootLayout({
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'GSS Collection | Silver Rings & Natural Gemstones',
+    template: '%s | GSS Collection',
+  },
+  description:
+    'Handcrafted 925 sterling silver ladies rings, gents rings, and untreated natural gemstones.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'GSS Collection',
+    title: 'GSS Collection | Silver Rings & Natural Gemstones',
+    description:
+      'Handcrafted 925 sterling silver ladies rings, gents rings, and untreated natural gemstones.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
+};
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const settings = await getStoreSettings();
+  const phone = formatDisplayPhone(settings.contact.phone);
+
+  const orgJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: settings.storeName || 'GSS Collection',
+    url: siteUrl,
+    ...(phone ? { telephone: phone } : {}),
+    ...(settings.contact.email ? { email: settings.contact.email } : {}),
+  };
+
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable}`}>
       <body className="min-h-screen flex flex-col bg-white text-ink antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-ink focus:text-white focus:px-4 focus:py-2 focus:text-xs focus:font-semibold"
+        >
+          Skip to main content
+        </a>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
+        />
         <CartProvider>
-          <AnnouncementBar />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          <StoreHeaderShell announcement={settings.announcements?.[0]} />
+          <main id="main-content" className="flex-1">
+            {children}
+          </main>
+          <StoreFooterShell>
+            <Footer settings={settings} />
+          </StoreFooterShell>
           <CartDrawer />
         </CartProvider>
         <WebVitals />

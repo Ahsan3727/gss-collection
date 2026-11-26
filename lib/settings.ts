@@ -1,7 +1,9 @@
+import { unstable_cache } from 'next/cache';
 import { connectDB } from '@/lib/db';
-import { Settings, ISettings } from '@/lib/models/Settings';
+import { Settings } from '@/lib/models/Settings';
+import type { StoreSettingsData } from '@/lib/types';
 
-export const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: StoreSettingsData = {
   storeName: 'GSS Collection',
   tagline: 'Handcrafted in 925 Sterling Silver & Natural Gemstones',
   baseCurrency: 'PKR',
@@ -22,35 +24,60 @@ export const DEFAULT_SETTINGS = {
     'Cash on delivery & direct bank transfer accepted',
   ],
   contact: {
-    email: 'info@gsscollection.com',
-    phone: '+92 300 1234567',
+    email: '',
+    // Left blank on purpose so WhatsApp buttons stay hidden until a real number is saved in /admin/settings.
+    phone: '',
     hours: 'Mon - Sat, 10:00 AM - 7:00 PM PKT',
-    address: 'GSS Collection Fine Jewellery, Lahore, Pakistan',
+    address: '',
   },
   bank: {
     bankName: 'Meezan Bank Ltd',
     accountTitle: 'GSS Collection',
     // Left blank on purpose: the real account number is saved in /admin/settings.
-    // A made-up number here could send customer payments to the wrong account
-    // if the settings read ever fails.
     accountNumber: '',
   },
   spotlightId: 'crimson-halo-ring',
   moderateReviews: false,
 };
 
-export async function getStoreSettings(): Promise<typeof DEFAULT_SETTINGS> {
+/**
+ * Direct, uncached DB reader. Throws on database errors so callers like POST /api/orders
+ * never charge against stale or cached defaults, and unstable_cache never caches a failure.
+ */
+export async function loadSettings(): Promise<StoreSettingsData> {
+  await connectDB();
+  const doc = await Settings.findOne().lean();
+  if (!doc) return DEFAULT_SETTINGS;
+  const serialized = JSON.parse(JSON.stringify(doc)) as Partial<StoreSettingsData>;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...serialized,
+    contact: { ...DEFAULT_SETTINGS.contact, ...(serialized.contact || {}) },
+    bank: { ...DEFAULT_SETTINGS.bank, ...(serialized.bank || {}) },
+    shipping: {
+      pk: serialized.shipping?.pk?.length ? serialized.shipping.pk : DEFAULT_SETTINGS.shipping.pk,
+      intl: serialized.shipping?.intl?.length ? serialized.shipping.intl : DEFAULT_SETTINGS.shipping.intl,
+    },
+    announcements: serialized.announcements?.length
+      ? serialized.announcements
+      : DEFAULT_SETTINGS.announcements,
+  };
+}
+
+const getCachedSettings = unstable_cache(loadSettings, ['store-settings'], {
+  tags: ['settings'],
+  revalidate: 3600,
+});
+
+/**
+ * Cached storefront settings reader. try/catch lives OUTSIDE unstable_cache so a temporary
+ * DB error never gets stored in the Next.js cache for an hour.
+ */
+export async function getStoreSettings(): Promise<StoreSettingsData> {
   try {
-    await connectDB();
-    const doc = await Settings.findOne().lean();
-    if (doc) {
-      return {
-        ...DEFAULT_SETTINGS,
-        ...JSON.parse(JSON.stringify(doc)),
-      };
-    }
+    return await getCachedSettings();
   } catch (err) {
-    console.warn('[Settings] Failed to fetch settings from DB, using defaults');
+    console.warn('[Settings] Failed to fetch settings from DB, using safe defaults:', err);
+    return DEFAULT_SETTINGS;
   }
-  return DEFAULT_SETTINGS;
 }

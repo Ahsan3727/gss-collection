@@ -1,17 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/admin';
+  const urlError = searchParams.get('error');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(
+    urlError === 'AccessDenied' ? 'Administrator permissions are required for that route.' : ''
+  );
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,77 +38,106 @@ export default function AdminLoginPage() {
         router.push(callbackUrl);
         router.refresh();
       }
-    } catch (err: any) {
-      setError(err?.message || 'Authentication failed. Please verify credentials.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Authentication failed. Please verify credentials.');
       setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-ground px-4 py-12">
-      <div className="max-w-md w-full bg-white border border-line p-8 md:p-10 shadow-sm">
+      <div className="max-w-md w-full bg-white border border-line p-6 sm:p-10 shadow-sm">
         <div className="text-center mb-8">
-          <span className="text-[11px] font-semibold tracking-[0.25em] uppercase text-ink-2 block mb-2">
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase text-ink-2 block mb-2">
             GSS Collection
           </span>
           <h1 className="font-display text-3xl font-medium text-ink">
             Admin Authentication
           </h1>
-          <p className="text-xs text-ink-3 mt-2">
+          <p className="text-xs text-ink-2 mt-2">
             Restricted access portal for authorized store managers only.
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-sm">
+          <div role="alert" className="mb-6 p-3.5 bg-red-50 border border-red-200 text-error text-xs font-medium rounded-sm">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs uppercase tracking-wider font-medium text-ink mb-2">
+            <label htmlFor="admin-email" className="block text-xs uppercase tracking-wider font-semibold text-ink mb-2">
               Administrator Email
             </label>
             <input
+              id="admin-email"
               type="email"
+              inputMode="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="admin@gsscollection.com"
-              className="w-full px-3.5 py-2.5 border border-line text-sm focus:outline-none focus:border-ink transition"
+              className="w-full px-3.5 min-h-[48px] border border-line text-base focus:outline-none focus:border-ink transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider font-medium text-ink mb-2">
+            <label htmlFor="admin-password" className="block text-xs uppercase tracking-wider font-semibold text-ink mb-2">
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••••••"
-              className="w-full px-3.5 py-2.5 border border-line text-sm focus:outline-none focus:border-ink transition"
-            />
+            <div className="relative">
+              <input
+                id="admin-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••••••"
+                className="w-full px-3.5 pr-16 min-h-[48px] border border-line text-base focus:outline-none focus:border-ink transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-0 top-0 bottom-0 px-3 min-w-[44px] flex items-center justify-center text-xs font-semibold uppercase tracking-wider text-ink-2 hover:text-ink"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-ink text-white py-3 text-xs uppercase tracking-[0.2em] font-medium hover:bg-neutral-800 transition disabled:opacity-50"
+            className="w-full bg-ink text-white min-h-[48px] text-xs uppercase tracking-[0.2em] font-semibold hover:bg-neutral-800 transition disabled:opacity-50"
           >
             {loading ? 'Authenticating...' : 'Sign In to Portal'}
           </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-line text-center">
-          <span className="text-[11px] text-ink-3">
-            Protected with bcrypt cost 12, brute-force lockout & secure JWT sessions.
+          <span className="text-xs text-ink-2">
+            Protected with bcrypt hashing, lockout, and signed sessions.
           </span>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-ground text-xs text-ink-2">
+          Loading login...
+        </div>
+      }
+    >
+      <AdminLoginForm />
+    </Suspense>
   );
 }

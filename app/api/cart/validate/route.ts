@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models/Product';
-import { getStoreSettings } from '@/lib/settings';
+import { loadSettings } from '@/lib/settings';
+import { resolveShippingOption, resolveVariantSelection } from '@/lib/pricing';
+import { CartValidateInputSchema } from '@/lib/schemas';
+import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
+import type { ProductRecord } from '@/lib/types';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const ip = clientIpFromRequest(req);
+    const limit = await rateLimit(`cart:${ip}`, 60, 60);
+    if (!limit.success) {
+      return rateLimitExceededResponse(limit.reset);
+    }
+
+    const rawBody: unknown = await req.json();
+    const parsed = CartValidateInputSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid cart payload' }, { status: 400 });
+    }
+
+    const { items: rawItems, country = 'PK', shippingMethodId = 'std' } = parsed.data;
 
     if (rawItems.length === 0) {
       return NextResponse.json({
@@ -20,17 +35,26 @@ export async function POST(req: Request) {
     }
 
     await connectDB();
-    const settings = await getStoreSettings();
+    const settings = await loadSettings();
 
     const validatedItems = [];
-    const issues = [];
+    const issues: string[] = [];
     let subtotal = 0;
 
     for (const item of rawItems) {
-      const product = await Product.findOne({
-        $or: [{ id: item.productId }, { handle: item.handle }, { handle: item.productId }],
+      const lookupClauses: Record<string, string>[] = [];
+      if (item.productId) {
+        lookupClauses.push({ id: item.productId }, { handle: item.productId });
+      }
+      if (item.handle) {
+        lookupClauses.push({ handle: item.handle });
+      }
+      if (lookupClauses.length === 0) continue;
+
+      const product = (await Product.findOne({
+        $or: lookupClauses,
         status: 'active',
-      }).lean();
+      }).lean()) as ProductRecord | null;
 
       if (!product) {
         issues.push(`"${item.title || 'Selected item'}" is no longer available.`);
@@ -41,36 +65,19 @@ export async function POST(req: Request) {
       const size = item.size || product.sizes[0] || '7';
       const qty = Math.max(1, Math.min(10, Number(item.qty) || 1));
 
-      // Calculate server verified price
-      const delta = (product.stoneDeltas && (product.stoneDeltas as any)[stone]) || 0;
-      const serverPrice = product.base + delta;
+      const resolved = resolveVariantSelection(product, stone, size);
 
-      // Check stock
-      let availableStock = 10;
-      const sku = `${product.handle.toUpperCase()}-${stone.toUpperCase()}-${size}`;
-
-      if (product.variants && product.variants.length > 0) {
-        const v = product.variants.find((vr: any) => vr.stone === stone && vr.size === size);
-        if (v) availableStock = v.stock;
-      } else if (product.inventory) {
-        const key = `${stone}:${size}`;
-        if (key in product.inventory) {
-          availableStock = (product.inventory as any)[key];
-        }
-      }
-
-      if (availableStock <= 0) {
+      if (resolved.mode === 'unavailable' || resolved.price === null || !resolved.available) {
         issues.push(`"${product.title}" (${stone}, Size ${size}) is currently sold out.`);
         continue;
       }
 
-      const finalQty = Math.min(qty, availableStock);
+      const finalQty = Math.min(qty, resolved.stock);
       if (finalQty < qty) {
-        issues.push(`Only ${availableStock} unit(s) of "${product.title}" (${stone}) available.`);
+        issues.push(`Only ${resolved.stock} unit(s) of "${product.title}" (${stone}) available.`);
       }
 
-      const itemTotal = serverPrice * finalQty;
-      subtotal += itemTotal;
+      subtotal += resolved.price * finalQty;
 
       validatedItems.push({
         productId: product.id,
@@ -78,27 +85,28 @@ export async function POST(req: Request) {
         title: product.title,
         stone,
         size,
-        price: serverPrice,
+        price: resolved.price,
         qty: finalQty,
+        maxStock: resolved.stock,
         photo: product.photos?.[0] || '',
-        sku,
+        sku: resolved.sku,
       });
     }
 
-    const freeShippingThreshold = settings.freeShippingFrom || 15000;
-    const shipping = subtotal >= freeShippingThreshold ? 0 : 300;
-    const total = subtotal + shipping;
+    const shippingInfo = resolveShippingOption(settings, subtotal, country, shippingMethodId, false);
+    const total = subtotal + shippingInfo.price;
 
     return NextResponse.json({
       valid: issues.length === 0 && validatedItems.length > 0,
       items: validatedItems,
       subtotal,
-      shipping,
+      shipping: shippingInfo.price,
+      shippingLabel: shippingInfo.label,
       total,
-      freeShippingThreshold,
+      freeShippingThreshold: settings.freeShippingFrom,
       issues,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Cart Validate Error]:', err);
     return NextResponse.json({ error: 'Failed to validate cart' }, { status: 500 });
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
 
@@ -8,17 +8,29 @@ export default function Header() {
   const { totalCount, openDrawer } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen]);
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-line transition-all">
-      <div className="max-w-site mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
+      <div className="max-w-site mx-auto px-2 sm:px-4 md:px-6 h-14 md:h-20 flex items-center justify-between gap-2">
         {/* Mobile menu button */}
         <div className="flex items-center md:hidden">
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-ink hover:text-ink-2"
-            aria-label="Toggle menu"
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-ink hover:text-ink-2"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-store-nav"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               {mobileMenuOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M6 18L18 6M6 6l12 12" />
               ) : (
@@ -29,78 +41,94 @@ export default function Header() {
         </div>
 
         {/* Desktop Navigation links */}
-        <nav className="hidden md:flex items-center gap-7">
+        <nav aria-label="Primary categories" className="hidden md:flex items-center gap-7">
           <Link
             href="/collections/all"
-            className="text-[12px] tracking-[0.16em] uppercase font-medium text-ink hover:underline underline-offset-8 transition-colors"
+            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
           >
             All Jewellery
           </Link>
           <Link
             href="/collections/ladies"
-            className="text-[12px] tracking-[0.16em] uppercase font-medium text-ink hover:underline underline-offset-8 transition-colors"
+            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
           >
             Ladies Rings
           </Link>
           <Link
             href="/collections/gents"
-            className="text-[12px] tracking-[0.16em] uppercase font-medium text-ink hover:underline underline-offset-8 transition-colors"
+            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
           >
             Gents Rings
           </Link>
           <Link
             href="/collections/gems"
-            className="text-[12px] tracking-[0.16em] uppercase font-medium text-ink hover:underline underline-offset-8 transition-colors"
+            className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2"
           >
             Natural Gems
           </Link>
         </nav>
 
         {/* Brand logo */}
-        <Link href="/" className="flex flex-col items-center group py-2">
-          <span className="font-display font-semibold text-2xl md:text-3xl tracking-[0.18em] uppercase text-ink">
+        <Link href="/" className="flex flex-col items-center py-1 min-w-0">
+          <span className="font-display font-semibold text-base sm:text-2xl md:text-3xl tracking-[0.06em] sm:tracking-[0.16em] uppercase text-ink whitespace-nowrap">
             GSS Collection
           </span>
-          <span className="text-[9px] tracking-[0.25em] text-ink-2 uppercase -mt-0.5">
-            Fine Silver & Natural Gemstones
+          <span className="hidden md:block text-xs tracking-[0.18em] text-ink-2 uppercase -mt-0.5">
+            Fine Silver &amp; Natural Gemstones
           </span>
         </Link>
 
         {/* Actions */}
-        <div className="flex items-center gap-3">
-          {/* Wishlist */}
+        <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
           <Link
             href="/wishlist"
-            className="p-2 text-ink hover:text-ink-2 transition-colors"
+            className="hidden sm:flex min-w-[44px] min-h-[44px] items-center justify-center text-ink hover:text-ink-2 transition-colors"
             aria-label="View wishlist"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.6"
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
             </svg>
           </Link>
 
-          {/* Search */}
           <Link
             href="/search"
-            className="p-2 text-ink hover:text-ink-2 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-ink hover:text-ink-2 transition-colors"
             aria-label="Search store"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.6"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </Link>
 
-          {/* Cart Button */}
           <button
+            type="button"
             onClick={openDrawer}
-            className="relative p-2 text-ink hover:text-ink-2 transition-colors"
-            aria-label="View shopping bag"
+            className="relative min-w-[44px] min-h-[44px] flex items-center justify-center text-ink hover:text-ink-2 transition-colors"
+            aria-label={`View shopping bag (${totalCount} items)`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.6"
+                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+              />
             </svg>
             {totalCount > 0 && (
-              <span className="absolute top-1 right-1 bg-ink text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+              <span
+                aria-hidden="true"
+                className="absolute top-1.5 right-1.5 bg-ink text-white text-xs min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center font-bold leading-none"
+              >
                 {totalCount}
               </span>
             )}
@@ -110,43 +138,54 @@ export default function Header() {
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-line bg-white px-6 py-4 space-y-3">
+        <nav
+          id="mobile-store-nav"
+          aria-label="Mobile menu"
+          className="md:hidden border-t border-line bg-white px-4 py-2 divide-y divide-line"
+        >
           <Link
             href="/collections/all"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-xs uppercase tracking-[0.16em] font-medium text-ink py-2"
+            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
           >
             All Jewellery
           </Link>
           <Link
             href="/collections/ladies"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-xs uppercase tracking-[0.16em] font-medium text-ink py-2"
+            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
           >
             Ladies Rings
           </Link>
           <Link
             href="/collections/gents"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-xs uppercase tracking-[0.16em] font-medium text-ink py-2"
+            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
           >
             Gents Rings
           </Link>
           <Link
             href="/collections/gems"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-xs uppercase tracking-[0.16em] font-medium text-ink py-2"
+            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
           >
             Natural Gems
           </Link>
           <Link
+            href="/wishlist"
+            onClick={() => setMobileMenuOpen(false)}
+            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
+          >
+            Wishlist
+          </Link>
+          <Link
             href="/track-order"
             onClick={() => setMobileMenuOpen(false)}
-            className="block text-xs uppercase tracking-[0.16em] font-medium text-ink py-2 text-neutral-500"
+            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink-2"
           >
             Track Order
           </Link>
-        </div>
+        </nav>
       )}
     </header>
   );

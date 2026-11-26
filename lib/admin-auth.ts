@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth';
+import { isAdminRole } from '@/lib/roles';
 
 export interface AdminSessionUser {
   id: string;
@@ -9,14 +10,23 @@ export interface AdminSessionUser {
   role: string;
 }
 
+type SessionUserShape = {
+  id?: string;
+  email?: string | null;
+  name?: string | null;
+  role?: string;
+};
+
 export async function getAdminSession(): Promise<AdminSessionUser | null> {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return null;
+  const user = session?.user as SessionUserShape | undefined;
+  if (!user?.email || !isAdminRole(user.role)) return null;
+
   return {
-    id: (session.user as any).id || '',
-    email: session.user.email,
-    name: session.user.name || 'Admin',
-    role: (session.user as any).role || 'admin',
+    id: user.id || '',
+    email: user.email,
+    name: user.name || 'Admin',
+    role: user.role,
   };
 }
 
@@ -28,9 +38,13 @@ export async function requireAdmin(): Promise<AdminSessionUser> {
   return admin;
 }
 
-export async function requireAdminApi(): Promise<{ user: AdminSessionUser } | { errorResponse: NextResponse }> {
-  const admin = await getAdminSession();
-  if (!admin) {
+export async function requireAdminApi(): Promise<
+  { user: AdminSessionUser } | { errorResponse: NextResponse }
+> {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUserShape | undefined;
+
+  if (!user?.email) {
     return {
       errorResponse: NextResponse.json(
         { error: 'Unauthorized. Please sign in as an administrator.' },
@@ -38,5 +52,22 @@ export async function requireAdminApi(): Promise<{ user: AdminSessionUser } | { 
       ),
     };
   }
-  return { user: admin };
+
+  if (!isAdminRole(user.role)) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Forbidden. Administrator role required.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return {
+    user: {
+      id: user.id || '',
+      email: user.email,
+      name: user.name || 'Admin',
+      role: user.role,
+    },
+  };
 }

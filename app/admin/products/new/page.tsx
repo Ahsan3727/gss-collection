@@ -7,7 +7,7 @@ export default function AdminNewProductPage() {
       <div className="border-b border-line pb-6 mb-8">
         <Link
           href="/admin/products"
-          className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-2 hover:text-ink"
+          className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-2 hover:text-ink inline-flex items-center min-h-[44px]"
         >
           ← All products
         </Link>

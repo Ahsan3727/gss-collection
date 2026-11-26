@@ -17,12 +17,10 @@ export async function POST(req: Request) {
     cloudName = env.CLOUDINARY_CLOUD_NAME;
     apiKey = env.CLOUDINARY_API_KEY;
     apiSecret = env.CLOUDINARY_API_SECRET;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Cloudinary Upload Error]: configuration missing');
-    return NextResponse.json(
-      { error: err?.message || 'Image storage is not configured' },
-      { status: 500 }
-    );
+    const message = err instanceof Error ? err.message : 'Image storage is not configured';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   cloudinary.config({
@@ -72,8 +70,8 @@ export async function POST(req: Request) {
       url: result.secure_url,
       publicId: result.public_id,
     });
-  } catch (err: any) {
-    console.error('[Cloudinary Upload Error]:', err?.message || err);
+  } catch (err: unknown) {
+    console.error('[Cloudinary Upload Error]:', err instanceof Error ? err.message : err);
     return NextResponse.json({ error: 'Image upload failed' }, { status: 500 });
   }
 }

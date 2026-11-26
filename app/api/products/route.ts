@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models/Product';
 import { requireAdminApi } from '@/lib/admin-auth';
@@ -14,12 +15,12 @@ export async function GET(req: Request) {
     const stone = searchParams.get('stone');
     const handles = searchParams.get('handles');
     const sort = searchParams.get('sort');
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '24')));
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24));
 
     await connectDB();
 
-    const query: any = { status: 'active' };
+    const query: Record<string, unknown> = { status: 'active' };
 
     if (cat && cat !== 'all') {
       query.cat = cat;
@@ -28,11 +29,15 @@ export async function GET(req: Request) {
       query.stones = stone;
     }
     if (handles) {
-      const handleList = handles.split(',').map((h) => h.trim());
+      const handleList = handles
+        .split(',')
+        .map((h) => h.trim())
+        .filter(Boolean)
+        .slice(0, 50);
       query.handle = { $in: handleList };
     }
 
-    let sortOption: any = { createdAt: -1 };
+    let sortOption: Record<string, 1 | -1> = { createdAt: -1 };
     if (sort === 'price-asc') sortOption = { base: 1 };
     else if (sort === 'price-desc') sortOption = { base: -1 };
     else if (sort === 'best') sortOption = { sold: -1 };
@@ -53,7 +58,7 @@ export async function GET(req: Request) {
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Products API Error]:', err);
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
   }
@@ -64,7 +69,7 @@ export async function POST(req: Request) {
   if ('errorResponse' in authCheck) return authCheck.errorResponse;
 
   try {
-    const body = await req.json();
+    const body: unknown = await req.json();
     const parsed = parseProductWrite(body);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -86,11 +91,15 @@ export async function POST(req: Request) {
       handle: newProduct.handle,
     });
 
+    revalidateTag('products');
+    revalidateTag(`product:${newProduct.handle}`);
+
     return NextResponse.json(
       { success: true, product: JSON.parse(JSON.stringify(newProduct)) },
       { status: 201 }
     );
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Error creating product' }, { status: 400 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error creating product';
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

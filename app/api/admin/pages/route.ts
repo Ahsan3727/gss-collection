@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Page } from '@/lib/models/Page';
 import { requireAdminApi } from '@/lib/admin-auth';
@@ -42,8 +43,12 @@ export async function POST(req: Request) {
       title: page.title,
     });
 
+    revalidateTag('pages');
+    revalidateTag(`page:${page.slug}`);
+
     return NextResponse.json({ success: true, page: JSON.parse(JSON.stringify(page)) }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to create page' }, { status: 400 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to create page';
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

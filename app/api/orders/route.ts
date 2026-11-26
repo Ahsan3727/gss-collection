@@ -1,63 +1,51 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
+import { revalidateTag } from 'next/cache';
 import crypto from 'crypto';
 import { connectDB } from '@/lib/db';
 import { Order } from '@/lib/models/Order';
 import { Product } from '@/lib/models/Product';
 import { Discount } from '@/lib/models/Discount';
 import { getNextOrderNumber } from '@/lib/models/Counter';
-import { getStoreSettings } from '@/lib/settings';
+import { loadSettings } from '@/lib/settings';
+import { computeDiscount, resolveShippingOption } from '@/lib/pricing';
 import { resolveStockSource, takeStock, rollbackStock, type StockTaken } from '@/lib/stock';
-
-const orderItemSchema = z.object({
-  productId: z.string().min(1),
-  handle: z.string().optional(),
-  title: z.string().optional(),
-  stone: z.string().min(1),
-  size: z.string().min(1),
-  qty: z.number().int().min(1).max(10),
-  // A `sku` sent by the browser is ignored. The server works it out from the stored variant.
-});
-
-const createOrderSchema = z.object({
-  items: z.array(orderItemSchema).min(1, 'Order must contain at least one item'),
-  contact: z.object({
-    email: z.string().email('Please enter a valid email address'),
-    phone: z.string().min(8, 'Please enter a valid phone number'),
-  }),
-  address: z.object({
-    name: z.string().min(2, 'Name is required'),
-    line1: z.string().min(3, 'Address is required'),
-    line2: z.string().optional(),
-    city: z.string().min(2, 'City is required'),
-    state: z.string().optional(),
-    zip: z.string().optional(),
-    country: z.string().default('PK'),
-  }),
-  payMethod: z.enum(['cod', 'bank']),
-  discountCode: z.string().optional(),
-  note: z.string().max(500).optional(),
-  idempotencyKey: z.string().optional(),
-});
+import { CreateOrderInputSchema } from '@/lib/schemas';
+import { normalizeWhatsAppNumber } from '@/lib/contact';
+import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
+import { reportError } from '@/lib/monitoring';
 
 export async function POST(req: Request) {
-  // Stock taken so far. If anything fails later, it is put back (see the catch block).
   const taken: StockTaken[] = [];
+  let reservedDiscountId: unknown = null;
 
   try {
-    const rawBody = await req.json();
-    const parseResult = createOrderSchema.safeParse(rawBody);
+    const ip = clientIpFromRequest(req);
+    const ipLimit = await rateLimit(`orders:ip:${ip}`, 10, 600);
+    if (!ipLimit.success) {
+      return rateLimitExceededResponse(ipLimit.reset, 'Too many order attempts. Please wait a few minutes.');
+    }
+
+    const rawBody: unknown = await req.json();
+    const parseResult = CreateOrderInputSchema.safeParse(rawBody);
 
     if (!parseResult.success) {
       const firstError = parseResult.error.errors[0]?.message || 'Invalid order data';
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 
-    const { items, contact, address, payMethod, discountCode, note, idempotencyKey } = parseResult.data;
+    const { items, contact, address, payMethod, shippingMethodId, discountCode, note, idempotencyKey } =
+      parseResult.data;
+
+    const normalizedPhone = normalizeWhatsAppNumber(contact.phone) || contact.phone.replace(/\D/g, '');
+    if (normalizedPhone) {
+      const phoneLimit = await rateLimit(`orders:phone:${normalizedPhone}`, 6, 600);
+      if (!phoneLimit.success) {
+        return rateLimitExceededResponse(phoneLimit.reset, 'Multiple recent orders from this number. Please wait before trying again.');
+      }
+    }
 
     await connectDB();
 
-    // Check idempotency if key provided
     if (idempotencyKey) {
       const existing = await Order.findOne({ idempotencyKey }).lean();
       if (existing) {
@@ -70,11 +58,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const settings = await getStoreSettings();
+    const settings = await loadSettings();
 
-    // 1. Verify products, work out the price and SKU on the server, and take stock
     let subtotal = 0;
     const verifiedItems = [];
+    const affectedHandles = new Set<string>();
 
     for (const item of items) {
       const p = await Product.findOne({
@@ -84,19 +72,22 @@ export async function POST(req: Request) {
 
       if (!p) {
         await rollbackStock(Product, taken);
-        return NextResponse.json({ error: `Product "${item.title || item.productId}" is not available.` }, { status: 400 });
+        return NextResponse.json(
+          { error: `Product "${item.title || item.productId}" is not available.` },
+          { status: 400 }
+        );
       }
 
       const stone = item.stone;
       const size = item.size;
-
-      // Match the variant by stone and size. The SKU comes from the stored variant, never from the browser.
       const source = resolveStockSource(p, stone, size);
 
       if (source.mode === 'unavailable') {
         await rollbackStock(Product, taken);
         return NextResponse.json(
-          { error: `"${p.title}" is no longer available in ${stone}, Size ${size}. Please remove it from your bag.` },
+          {
+            error: `"${p.title}" is no longer available in ${stone}, Size ${size}. Please remove it from your bag.`,
+          },
           { status: 400 }
         );
       }
@@ -106,21 +97,26 @@ export async function POST(req: Request) {
       if (source.stock < item.qty) {
         await rollbackStock(Product, taken);
         return NextResponse.json(
-          { error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Only ${source.stock} remaining.` },
+          {
+            error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Only ${source.stock} remaining.`,
+          },
           { status: 400 }
         );
       }
 
-      // Atomic: only succeeds while enough stock is still there, so two buyers cannot take the last piece.
       const ok = await takeStock(Product, p._id, source.mode, stone, size, item.qty);
       if (!ok) {
         await rollbackStock(Product, taken);
         return NextResponse.json(
-          { error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Someone else just bought it.` },
+          {
+            error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Someone else just bought it.`,
+          },
           { status: 400 }
         );
       }
+
       taken.push({ dbId: p._id, mode: source.mode, stone, size, qty: item.qty });
+      affectedHandles.add(p.handle);
 
       subtotal += unitPrice * item.qty;
       verifiedItems.push({
@@ -136,50 +132,61 @@ export async function POST(req: Request) {
       });
     }
 
-    // 2. Validate discount
-    let discount = 0;
-    let appliedDiscountCode: string | undefined = undefined;
+    const baseShipping = resolveShippingOption(settings, subtotal, address.country, shippingMethodId, false);
 
-    if (discountCode) {
+    let discountAmount = 0;
+    let appliedDiscountCode: string | undefined;
+    let freeShippingFromPromo = false;
+
+    if (discountCode && discountCode.trim()) {
       const disc = await Discount.findOne({
         code: discountCode.trim().toUpperCase(),
         active: true,
       });
 
-      if (disc && subtotal >= disc.minOrder && (disc.limit === 0 || disc.uses < disc.limit)) {
-        if (disc.type === 'pct') {
-          discount = Math.round((subtotal * disc.value) / 100);
-        } else if (disc.type === 'fixed') {
-          discount = Math.min(subtotal, disc.value);
-        } else if (disc.type === 'ship') {
-          discount = 300;
+      if (disc) {
+        const calc = computeDiscount(disc, subtotal, baseShipping.price);
+        if (calc.valid) {
+          const claimed = await Discount.findOneAndUpdate(
+            {
+              _id: disc._id,
+              active: true,
+              $or: [{ limit: 0 }, { $expr: { $lt: ['$uses', '$limit'] } }],
+            },
+            { $inc: { uses: 1 } },
+            { new: true }
+          );
+          if (claimed) {
+            reservedDiscountId = claimed._id;
+            discountAmount = calc.freeShipping ? 0 : calc.amount;
+            freeShippingFromPromo = calc.freeShipping;
+            appliedDiscountCode = calc.code;
+          }
         }
-        disc.uses += 1;
-        await disc.save();
-        appliedDiscountCode = disc.code;
       }
     }
 
-    // 3. Calculate delivery
-    const freeShippingThreshold = settings.freeShippingFrom || 15000;
-    const isFreeShipping = subtotal >= freeShippingThreshold || appliedDiscountCode === 'FREESHIP';
-    const shipping = isFreeShipping ? 0 : 300;
-    const shippingLabel = isFreeShipping ? 'Free standard delivery' : 'Standard delivery (Rs. 300)';
-    const total = Math.max(0, subtotal - discount + shipping);
+    const finalShipping = resolveShippingOption(
+      settings,
+      subtotal,
+      address.country,
+      shippingMethodId,
+      freeShippingFromPromo
+    );
 
-    // 4. Sequential order number & secure access token
+    const total = Math.max(0, subtotal - discountAmount + finalShipping.price);
+
     const orderNo = await getNextOrderNumber();
     const accessToken = crypto.randomBytes(18).toString('hex');
 
-    // 5. Create Order document
     const order = await Order.create({
       orderNo,
       items: verifiedItems,
       subtotal,
-      discount,
+      discount: discountAmount,
       discountCode: appliedDiscountCode,
-      shipping,
-      shippingLabel,
+      shipping: finalShipping.price,
+      shippingLabel: finalShipping.label,
       total,
       payMethod,
       payStatus: 'pending',
@@ -199,14 +206,23 @@ export async function POST(req: Request) {
       restocked: false,
     });
 
+    revalidateTag('products');
+    revalidateTag('orders');
+    affectedHandles.forEach((handle) => revalidateTag(`product:${handle}`));
+
     return NextResponse.json({
       success: true,
       orderNo: order.orderNo,
       accessToken: order.accessToken,
     });
-  } catch (err: any) {
-    console.error('[Create Order Error]:', err);
+  } catch (err: unknown) {
     await rollbackStock(Product, taken);
+    if (reservedDiscountId) {
+      await Discount.updateOne({ _id: reservedDiscountId, uses: { $gt: 0 } }, { $inc: { uses: -1 } }).catch(
+        () => undefined
+      );
+    }
+    await reportError(err, { area: 'checkout', route: '/api/orders', level: 'fatal' });
     return NextResponse.json(
       { error: 'An unexpected error occurred while placing your order. Please retry.' },
       { status: 500 }

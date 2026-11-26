@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Page } from '@/lib/models/Page';
 import { requireAdminApi } from '@/lib/admin-auth';
@@ -40,6 +41,8 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
 
+    const previousSlug = page.slug;
+
     if (parsed.data.slug !== page.slug) {
       const taken = await Page.findOne({ slug: parsed.data.slug }).lean();
       if (taken) {
@@ -57,8 +60,13 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
       title: page.title,
     });
 
+    revalidateTag('pages');
+    revalidateTag(`page:${previousSlug}`);
+    revalidateTag(`page:${page.slug}`);
+
     return NextResponse.json({ success: true, page: JSON.parse(JSON.stringify(page)) });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to update page' }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to update page';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

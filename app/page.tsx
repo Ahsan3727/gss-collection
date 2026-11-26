@@ -1,115 +1,139 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import ProductGrid from '@/components/store/ProductGrid';
-import { connectDB } from '@/lib/db';
-import { Product } from '@/lib/models/Product';
+import { getHomeFeaturedProducts } from '@/lib/catalogue';
+import { formatMoney } from '@/lib/money';
+import type { ProductRecord } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
-async function getFeaturedProducts() {
-  await connectDB();
-  const products = await Product.find({ status: 'active' }).limit(8).lean();
-  return JSON.parse(JSON.stringify(products || []));
-}
+export const metadata: Metadata = {
+  title: 'GSS Collection | 925 Sterling Silver Rings & Natural Gemstones',
+  description:
+    'Shop handcrafted 925 sterling silver rings for ladies and gents, set with untreated natural gemstones. Cash on delivery across Pakistan.',
+  alternates: {
+    canonical: '/',
+  },
+};
 
 export default async function HomePage() {
-  const products = await getFeaturedProducts();
+  let products: ProductRecord[] = [];
+  let loadError = false;
+
+  try {
+    products = await getHomeFeaturedProducts();
+  } catch (err) {
+    console.error('[HomePage] Failed to load featured products:', err);
+    loadError = true;
+  }
+
+  const spotlight = products.find((p) => p.photos && p.photos.length > 0) || products[0];
+  const spotlightPhoto = spotlight?.photos?.[0];
 
   return (
-    <div className="pb-20">
-      {/* Editorial Hero Banner */}
-      <section className="relative bg-ink text-white overflow-hidden py-20 md:py-32">
-        <div className="max-w-site mx-auto px-4 md:px-6 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
-          <div className="max-w-xl text-center md:text-left">
-            <span className="text-[11px] font-semibold tracking-[0.25em] uppercase text-ice mb-3 block">
+    <div className="pb-16">
+      {/* Mobile-first Editorial Hero with real product photography immediately visible */}
+      <section className="bg-ink text-white py-8 md:py-16">
+        <div className="max-w-site mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 items-center">
+          {/* Hero product spotlight image: shown at top on phones so shoppers see real rings on screen 1 */}
+          <div className="md:col-span-5 md:order-2">
+            <Link
+              href={spotlight ? `/products/${spotlight.handle}` : '/collections/all'}
+              className="group block relative aspect-[4/3] sm:aspect-square w-full max-w-md mx-auto bg-neutral-900 border border-neutral-800 overflow-hidden"
+            >
+              {spotlightPhoto ? (
+                <Image
+                  src={spotlightPhoto}
+                  alt={spotlight?.title || 'Handcrafted 925 sterling silver gemstone ring'}
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 440px"
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
+                  <span className="font-display text-3xl tracking-widest uppercase text-white mb-2">
+                    Pure Silver
+                  </span>
+                  <span className="text-xs tracking-[0.2em] text-neutral-300 uppercase">
+                    Hallmarked 925
+                  </span>
+                </div>
+              )}
+              {spotlight && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end justify-between text-white">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-neutral-200 block">
+                      Featured Piece
+                    </span>
+                    <span className="font-display text-lg font-medium">{spotlight.title}</span>
+                  </div>
+                  <span className="text-sm font-semibold">{formatMoney(spotlight.base)}</span>
+                </div>
+              )}
+            </Link>
+          </div>
+
+          <div className="md:col-span-7 md:order-1 text-center md:text-left">
+            <span className="text-xs font-semibold tracking-[0.2em] uppercase text-neutral-300 mb-2 block">
               Handcrafted in 925 Sterling Silver
             </span>
-            <h1 className="font-display text-4xl md:text-6xl font-normal tracking-tight leading-[1.08] mb-6">
+            <h1 className="font-display text-3xl sm:text-5xl md:text-6xl font-normal tracking-tight leading-[1.08] mb-4">
               Natural untreated gemstones, set for a lifetime.
             </h1>
-            <p className="text-neutral-300 text-base md:text-lg font-light leading-relaxed mb-8">
-              Every ring is individually crafted with high-purity silver and natural mined stones. From bold signets to delicate solitaires.
+            <p className="text-neutral-200 text-sm sm:text-base md:text-lg font-light leading-relaxed mb-6 max-w-xl mx-auto md:mx-0">
+              Individually crafted with hallmarked silver and earth-mined stones. From bold signets to delicate solitaires.
             </p>
-            <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+            <div className="flex flex-wrap gap-3 justify-center md:justify-start">
               <Link
                 href="/collections/all"
-                className="bg-white text-ink text-xs uppercase tracking-[0.18em] font-medium px-8 py-3.5 hover:bg-neutral-200 transition-colors"
+                className="bg-white text-ink text-xs uppercase tracking-[0.18em] font-semibold px-7 min-h-[48px] inline-flex items-center justify-center hover:bg-neutral-200 transition-colors"
               >
-                Shop All Rings
+                Shop Collection
               </Link>
               <Link
                 href="/collections/gents"
-                className="border border-white text-white text-xs uppercase tracking-[0.18em] font-medium px-8 py-3.5 hover:bg-white hover:text-ink transition-colors"
+                className="border border-white text-white text-xs uppercase tracking-[0.18em] font-semibold px-7 min-h-[48px] inline-flex items-center justify-center hover:bg-white hover:text-ink transition-colors"
               >
-                Gents Collection
+                Gents Rings
               </Link>
             </div>
           </div>
-
-          <div className="w-full max-w-sm aspect-square bg-neutral-900 border border-neutral-800 rounded-sm p-8 flex items-center justify-center">
-            <div className="text-center">
-              <span className="font-display text-3xl font-light tracking-widest uppercase block text-white mb-2">
-                Pure Silver
-              </span>
-              <span className="text-xs tracking-[0.2em] text-neutral-400 uppercase">
-                Hallmarked 925
-              </span>
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* Trust & Craftsmanship Bar */}
-      <section className="border-b border-line py-8 bg-ground">
-        <div className="max-w-site mx-auto px-4 md:px-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          <div>
-            <h4 className="text-xs uppercase tracking-[0.16em] font-semibold text-ink mb-1">
-              Solid 925 Silver
-            </h4>
-            <p className="text-[12px] text-ink-2">Never plated, guaranteed genuine</p>
+      {/* Featured Products placed immediately after hero so product grid starts high */}
+      <div className="max-w-site mx-auto px-4 md:px-6 pt-8 md:pt-12">
+        {loadError ? (
+          <div className="py-12 border border-line bg-ground text-center p-6 my-4">
+            <p className="font-display text-2xl text-ink mb-2">Catalogue temporarily unavailable</p>
+            <p className="text-sm text-ink-2">
+              Please refresh in a moment to view our sterling silver jewellery.
+            </p>
           </div>
-          <div>
-            <h4 className="text-xs uppercase tracking-[0.16em] font-semibold text-ink mb-1">
-              Natural Gems
-            </h4>
-            <p className="text-[12px] text-ink-2">Authentic mined earth stones</p>
-          </div>
-          <div>
-            <h4 className="text-xs uppercase tracking-[0.16em] font-semibold text-ink mb-1">
-              Cash on Delivery
-            </h4>
-            <p className="text-[12px] text-ink-2">Available across all Pakistan</p>
-          </div>
-          <div>
-            <h4 className="text-xs uppercase tracking-[0.16em] font-semibold text-ink mb-1">
-              Free Delivery
-            </h4>
-            <p className="text-[12px] text-ink-2">On all orders above Rs. 15,000</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Products */}
-      <div className="max-w-site mx-auto px-4 md:px-6 pt-12">
-        <ProductGrid
-          products={products}
-          title="Featured Pieces"
-          subtitle="Recent Additions"
-        />
+        ) : (
+          <ProductGrid
+            products={products}
+            title="Featured Pieces"
+            subtitle="Recent Additions"
+          />
+        )}
       </div>
 
       {/* Collections Row */}
-      <section className="max-w-site mx-auto px-4 md:px-6 mt-16">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section aria-label="Browse categories" className="max-w-site mx-auto px-4 md:px-6 mt-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <Link
             href="/collections/ladies"
-            className="group block relative bg-ground p-10 border border-line hover:border-ink transition-all"
+            className="group block bg-ground p-7 md:p-9 border border-line hover:border-ink transition-all min-h-[44px]"
           >
-            <span className="text-[10px] tracking-[0.2em] uppercase text-ink-2 block mb-2">
+            <span className="text-xs tracking-[0.18em] uppercase text-ink-2 block mb-1.5">
               For Her
             </span>
-            <h3 className="font-display text-2xl font-medium text-ink mb-3 group-hover:underline">
+            <h2 className="font-display text-2xl font-medium text-ink mb-2 group-hover:underline">
               Ladies Rings
-            </h3>
+            </h2>
             <p className="text-sm text-ink-2">
               Solitaires, halo rings, and delicate everyday stacking bands.
             </p>
@@ -117,14 +141,14 @@ export default async function HomePage() {
 
           <Link
             href="/collections/gents"
-            className="group block relative bg-ground p-10 border border-line hover:border-ink transition-all"
+            className="group block bg-ground p-7 md:p-9 border border-line hover:border-ink transition-all min-h-[44px]"
           >
-            <span className="text-[10px] tracking-[0.2em] uppercase text-ink-2 block mb-2">
+            <span className="text-xs tracking-[0.18em] uppercase text-ink-2 block mb-1.5">
               For Him
             </span>
-            <h3 className="font-display text-2xl font-medium text-ink mb-3 group-hover:underline">
+            <h2 className="font-display text-2xl font-medium text-ink mb-2 group-hover:underline">
               Gents Rings
-            </h3>
+            </h2>
             <p className="text-sm text-ink-2">
               Classic signets, rectangle stones, and heavy solid bands.
             </p>
@@ -132,18 +156,48 @@ export default async function HomePage() {
 
           <Link
             href="/collections/gems"
-            className="group block relative bg-ground p-10 border border-line hover:border-ink transition-all"
+            className="group block bg-ground p-7 md:p-9 border border-line hover:border-ink transition-all min-h-[44px]"
           >
-            <span className="text-[10px] tracking-[0.2em] uppercase text-ink-2 block mb-2">
+            <span className="text-xs tracking-[0.18em] uppercase text-ink-2 block mb-1.5">
               Untreated
             </span>
-            <h3 className="font-display text-2xl font-medium text-ink mb-3 group-hover:underline">
+            <h2 className="font-display text-2xl font-medium text-ink mb-2 group-hover:underline">
               Natural Gems
-            </h3>
+            </h2>
             <p className="text-sm text-ink-2">
-              Emeralds, sapphires, turquoise, and loose stones.
+              Emeralds, sapphires, turquoise, and loose specimen stones.
             </p>
           </Link>
+        </div>
+      </section>
+
+      {/* Compact Trust & Craftsmanship Bar */}
+      <section aria-label="Store guarantees" className="max-w-site mx-auto px-4 md:px-6 mt-14">
+        <div className="border border-line bg-ground grid grid-cols-2 md:grid-cols-4 gap-6 p-6 md:p-8 text-center">
+          <div>
+            <h2 className="text-xs uppercase tracking-[0.14em] font-semibold text-ink mb-1">
+              Solid 925 Silver
+            </h2>
+            <p className="text-xs text-ink-2">Never plated, hallmarked purity</p>
+          </div>
+          <div>
+            <h2 className="text-xs uppercase tracking-[0.14em] font-semibold text-ink mb-1">
+              Natural Gems
+            </h2>
+            <p className="text-xs text-ink-2">Authentic mined earth stones</p>
+          </div>
+          <div>
+            <h2 className="text-xs uppercase tracking-[0.14em] font-semibold text-ink mb-1">
+              Cash on Delivery
+            </h2>
+            <p className="text-xs text-ink-2">Available nationwide in Pakistan</p>
+          </div>
+          <div>
+            <h2 className="text-xs uppercase tracking-[0.14em] font-semibold text-ink mb-1">
+              Insured Dispatch
+            </h2>
+            <p className="text-xs text-ink-2">Velvet gift box &amp; tracking</p>
+          </div>
         </div>
       </section>
     </div>

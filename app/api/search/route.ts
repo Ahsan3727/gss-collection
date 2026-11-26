@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       count: products.length,
       results: JSON.parse(JSON.stringify(products)),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Search API Error]:', err);
     return NextResponse.json({ query: '', results: [], error: 'Search temporarily unavailable' }, { status: 500 });
   }

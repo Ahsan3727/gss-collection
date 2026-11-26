@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models/Product';
 import { getAdminSession, requireAdminApi } from '@/lib/admin-auth';
@@ -12,7 +13,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
     await connectDB();
     const product = await Product.findOne(productLookup(params.id)).lean();
@@ -29,7 +30,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
 
     return NextResponse.json({ product: JSON.parse(JSON.stringify(product)) });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error('[Product GET Error]:', err);
     return NextResponse.json({ error: 'Failed to retrieve product' }, { status: 500 });
   }
 }
@@ -39,7 +41,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const body = await req.json();
+    const body: unknown = await req.json();
     const parsed = parseProductWrite(body);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -60,6 +62,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'A product with this handle already exists.' }, { status: 409 });
     }
 
+    const previousHandle = product.handle;
     const document = buildProductDocument(parsed.data, {
       id: product.id,
       existingDeltas: readDeltaMap(product.stoneDeltas),
@@ -96,13 +99,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       status: product.status,
     });
 
+    revalidateTag('products');
+    revalidateTag(`product:${previousHandle}`);
+    revalidateTag(`product:${product.handle}`);
+
     return NextResponse.json({ success: true, product: JSON.parse(JSON.stringify(product)) });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Error updating product' }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error updating product';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdminApi();
   if ('errorResponse' in auth) return auth.errorResponse;
 
@@ -122,8 +130,12 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       handle: product.handle,
     });
 
+    revalidateTag('products');
+    revalidateTag(`product:${product.handle}`);
+
     return NextResponse.json({ success: true, message: 'Product archived' });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error('[Product Archive Error]:', err);
     return NextResponse.json({ error: 'Failed to archive product' }, { status: 500 });
   }
 }

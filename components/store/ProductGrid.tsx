@@ -20,7 +20,7 @@ export default function ProductGrid({ products, title, subtitle }: ProductGridPr
       {(title || subtitle) && (
         <div className="mb-8">
           {subtitle && (
-            <span className="block text-[11px] font-semibold tracking-[0.2em] uppercase text-ink-2 mb-1">
+            <span className="block text-xs font-semibold tracking-[0.2em] uppercase text-ink-2 mb-1">
               {subtitle}
             </span>
           )}

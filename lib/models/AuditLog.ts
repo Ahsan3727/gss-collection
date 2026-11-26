@@ -5,7 +5,7 @@ export interface IAuditLog extends Document {
   action: string;
   entity: string;
   entityId?: string;
-  diff?: Record<string, any>;
+  diff?: Record<string, unknown>;
   ip?: string;
   at: Date;
 }
@@ -31,7 +31,7 @@ export async function logAdminAction(
   action: string,
   entity: string,
   entityId?: string,
-  diff?: Record<string, any>,
+  diff?: Record<string, unknown>,
   ip?: string
 ) {
   try {

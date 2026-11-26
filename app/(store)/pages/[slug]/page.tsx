@@ -1,59 +1,50 @@
 import { notFound } from 'next/navigation';
-import { connectDB } from '@/lib/db';
-import { Page } from '@/lib/models/Page';
 import type { Metadata } from 'next';
+import { getStaticPageBySlug } from '@/lib/catalogue';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 interface PageProps {
   params: { slug: string };
 }
 
-async function getPageData(slug: string) {
-  try {
-    await connectDB();
-    const doc = await Page.findOne({ slug }).lean();
-    if (doc) {
-      return JSON.parse(JSON.stringify(doc));
-    }
-  } catch (err) {
-    console.error(`[Page] Failed to fetch page ${slug}:`, err);
-  }
-  return null;
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const page = await getPageData(params.slug);
+  const page = await getStaticPageBySlug(params.slug);
   if (!page) {
-    return { title: 'Page Not Found | GSS Collection' };
+    return { title: 'Page Not Found' };
   }
   return {
-    title: `${page.title} | GSS Collection`,
+    title: page.title,
     description: page.metaDesc || `Learn about ${page.title} at GSS Collection.`,
+    alternates: {
+      canonical: `/pages/${page.slug}`,
+    },
   };
 }
 
 export default async function StaticContentPage({ params }: PageProps) {
-  const page = await getPageData(params.slug);
+  const page = await getStaticPageBySlug(params.slug);
 
   if (!page) {
     notFound();
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 md:px-6 py-14 md:py-20">
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-12 md:py-16">
       <div className="border-b border-line pb-6 mb-8 text-center md:text-left">
-        <span className="text-[11px] font-semibold tracking-[0.25em] uppercase text-ink-2 block mb-2">
-          Information & Guidelines
+        <span className="text-xs font-semibold tracking-[0.2em] uppercase text-ink-2 block mb-2">
+          Information &amp; Guidelines
         </span>
         <h1 className="font-display text-3xl md:text-5xl text-ink font-normal">
           {page.title}
         </h1>
       </div>
 
-      <div className="prose prose-neutral max-w-none text-ink leading-relaxed space-y-6 text-sm md:text-base font-light">
-        {page.body.split('\n\n').map((paragraph: string, idx: number) => (
-          <p key={idx}>{paragraph}</p>
+      <div className="prose prose-neutral max-w-none text-ink leading-relaxed space-y-5 text-base font-normal">
+        {page.body.split('\n\n').map((paragraph, idx) => (
+          <p key={idx} className="text-ink-2 leading-relaxed">
+            {paragraph}
+          </p>
         ))}
       </div>
     </div>

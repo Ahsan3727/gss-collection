@@ -70,10 +70,10 @@ const SettingsSchema = new Schema<ISettings>(
       ],
     },
     contact: {
-      email: { type: String, default: 'hello@gsscollection.example' },
-      phone: { type: String, default: '+92 300 000 0000' },
+      email: { type: String, default: '' },
+      phone: { type: String, default: '' },
       hours: { type: String, default: 'Mon to Sat, 10:00 to 18:00 (PKT)' },
-      address: { type: String, default: 'Lahore, Pakistan' },
+      address: { type: String, default: '' },
     },
     bank: {
       bankName: { type: String, default: 'Meezan Bank' },

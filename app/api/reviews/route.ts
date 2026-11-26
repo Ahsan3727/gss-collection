@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
 import { Review } from '@/lib/models/Review';
-import { getStoreSettings } from '@/lib/settings';
+import { loadSettings } from '@/lib/settings';
+import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
 const reviewSchema = z.object({
-  productId: z.string().min(1),
+  productId: z.string().min(1).max(120),
   name: z.string().min(2, 'Name is required').max(50),
   rating: z.number().int().min(1).max(5),
   comment: z.string().min(3, 'Review must be at least 3 characters').max(1000),
@@ -19,29 +21,38 @@ export async function GET(req: Request) {
     const productId = searchParams.get('productId');
 
     await connectDB();
-    const query: any = { approved: true };
+    const query: { approved: boolean; productId?: string } = { approved: true };
     if (productId) query.productId = productId;
 
     const reviews = await Review.find(query).sort({ createdAt: -1 }).limit(20).lean();
-    return NextResponse.json({ reviews });
+    return NextResponse.json({ reviews: JSON.parse(JSON.stringify(reviews)) });
   } catch (err) {
+    console.error('[Reviews GET Error]:', err);
     return NextResponse.json({ error: 'Failed to fetch reviews' }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const ip = clientIpFromRequest(req);
+    const limit = await rateLimit(`reviews:${ip}`, 5, 3600);
+    if (!limit.success) {
+      return rateLimitExceededResponse(limit.reset, 'Too many reviews submitted recently. Please try later.');
+    }
+
+    const body: unknown = await req.json();
     const parsed = reviewSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors[0]?.message || 'Invalid review' }, { status: 400 });
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid review' },
+        { status: 400 }
+      );
     }
 
     await connectDB();
-    const settings = await getStoreSettings();
+    const settings = await loadSettings();
 
-    // Auto-approve unless moderation is enabled in settings
     const autoApprove = !settings.moderateReviews;
 
     const review = await Review.create({
@@ -49,12 +60,22 @@ export async function POST(req: Request) {
       approved: autoApprove,
     });
 
-    return NextResponse.json({
-      success: true,
-      review,
-      message: autoApprove ? 'Review posted successfully!' : 'Thank you! Your review is pending atelier approval.',
-    }, { status: 201 });
-  } catch (err: any) {
+    if (autoApprove) {
+      revalidateTag(`reviews:${parsed.data.productId}`);
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        review: JSON.parse(JSON.stringify(review)),
+        message: autoApprove
+          ? 'Review posted successfully!'
+          : 'Thank you! Your review is pending atelier approval.',
+      },
+      { status: 201 }
+    );
+  } catch (err: unknown) {
+    console.error('[Reviews POST Error]:', err);
     return NextResponse.json({ error: 'Failed to submit review' }, { status: 500 });
   }
 }

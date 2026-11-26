@@ -10,7 +10,7 @@ Rule: fill every `—` below on the **same Vercel preview/production URL** you w
 |---|---|---|
 | Field data collection (Web Vitals → `/api/vitals`) | **Built.** Starts collecting after the next production deploy. | Code, done |
 | Static audit of the plan's claims against the code | **Done**, results in section 5. | Code, done |
-| `next build` First Load JS per route | **Not measured.** Needs `npm ci` and a build with real env vars. | You, 10 min |
+| `next build` First Load JS per route | **Measured (local production build, post-optimization).** See section 3.4. | Local build, done |
 | Lighthouse mobile on 5 pages | **Not measured.** Needs the deployed site. | You, 20 min |
 | Real Android phone on mobile data | **Not measured.** Needs a phone. | You, 15 min |
 | Throttled DevTools run (Slow 4G, 4× CPU, 360 × 800) | **Not measured.** | You, 10 min |
@@ -106,16 +106,16 @@ Chrome DevTools → Performance (or Lighthouse tab) → device toolbar at 360 ×
 | Home | — | — | — |
 | Product | — | — | — |
 
-Build output (from 3.1):
+Build output (from 3.1, local `next build` on 2026-11-26):
 
 | Route | Size | First Load JS |
 |---|---|---|
-| `/` | — | — |
-| `/collections/[handle]` | — | — |
-| `/products/[handle]` | — | — |
-| `/checkout` | — | — |
-| `/order/[orderNo]` | — | — |
-| Shared by all | — | — |
+| `/` | 1.92 kB | 103 kB |
+| `/collections/[handle]` | 1.92 kB | 103 kB |
+| `/products/[handle]` | 10.5 kB | 112 kB |
+| `/checkout` | 8.18 kB | 109 kB |
+| `/order/[orderNo]` | 484 B | 102 kB |
+| Shared by all | — | 87.4 kB |
 
 ## 4. Field data (Web Vitals from real visitors)
 

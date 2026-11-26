@@ -113,6 +113,15 @@ const OrderSchema = new Schema<IOrder>(
 );
 
 OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ fulfil: 1, createdAt: -1 });
 
 export const Order: Model<IOrder> =
   mongoose.models.Order || mongoose.model<IOrder>('Order', OrderSchema);
+
+export function orderLookup(id: string): Record<string, unknown> {
+  const orderNo = id.trim().toUpperCase();
+  if (mongoose.isValidObjectId(id)) {
+    return { $or: [{ orderNo }, { _id: id }] };
+  }
+  return { orderNo };
+}
