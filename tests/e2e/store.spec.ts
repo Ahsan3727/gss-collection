@@ -47,6 +47,24 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     // 1. Home displays category rows with More+ collage tile -> navigates to Collections -> Product
     await page.goto('/');
     await assertNoHorizontalOverflow(page, '/');
+
+    // Verify dark mobile menu drawer (#0B0B0B bg + white link text) and WCAG AA compliance
+    await page.getByRole('button', { name: /Open navigation menu/i }).click();
+    const mobileNav = page.locator('#mobile-store-nav');
+    await expect(mobileNav).toBeVisible();
+    const menuColors = await mobileNav.evaluate((nav) => {
+      const link = nav.querySelector('a');
+      return {
+        bg: getComputedStyle(nav).backgroundColor,
+        text: link ? getComputedStyle(link).color : '',
+      };
+    });
+    expect(menuColors.bg).toBe('rgb(11, 11, 11)');
+    expect(menuColors.text).toBe('rgb(255, 255, 255)');
+    await assertNoAxeViolations(page, 'mobile-menu-open');
+    await page.getByRole('button', { name: /Close navigation menu/i }).click();
+    await expect(mobileNav).toBeHidden();
+
     await expect(page.getByRole('heading', { name: /Ladies Rings/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Gents Rings/i })).toBeVisible();
 

@@ -4,6 +4,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart-context';
 
+const MOBILE_NAV_LINKS = [
+  { href: '/collections/all', label: 'All Jewellery' },
+  { href: '/collections/ladies', label: 'Ladies Rings' },
+  { href: '/collections/gents', label: 'Gents Rings' },
+  { href: '/collections/gems', label: 'Natural Gems' },
+  { href: '/wishlist', label: 'Wishlist' },
+  { href: '/track-order', label: 'Track Order' },
+] as const;
+
 export default function Header() {
   const { totalCount, openDrawer } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -141,50 +150,18 @@ export default function Header() {
         <nav
           id="mobile-store-nav"
           aria-label="Mobile menu"
-          className="md:hidden border-t border-line bg-white px-4 py-2 divide-y divide-line"
+          className="md:hidden border-t border-neutral-800 bg-ink text-white px-4 py-2 divide-y divide-neutral-800"
         >
-          <Link
-            href="/collections/all"
-            onClick={() => setMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
-          >
-            All Jewellery
-          </Link>
-          <Link
-            href="/collections/ladies"
-            onClick={() => setMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
-          >
-            Ladies Rings
-          </Link>
-          <Link
-            href="/collections/gents"
-            onClick={() => setMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
-          >
-            Gents Rings
-          </Link>
-          <Link
-            href="/collections/gems"
-            onClick={() => setMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
-          >
-            Natural Gems
-          </Link>
-          <Link
-            href="/wishlist"
-            onClick={() => setMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink"
-          >
-            Wishlist
-          </Link>
-          <Link
-            href="/track-order"
-            onClick={() => setMobileMenuOpen(false)}
-            className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-ink-2"
-          >
-            Track Order
-          </Link>
+          {MOBILE_NAV_LINKS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-white hover:text-neutral-300 transition-colors focus-visible:outline-white focus-visible:outline-offset-[-2px]"
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
       )}
     </header>
