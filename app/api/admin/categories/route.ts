@@ -4,6 +4,7 @@ import { requireAdminApi } from '@/lib/admin-auth';
 import { ensureCategories, getCategoriesWithCounts } from '@/lib/categories';
 import { parseCategoryWrite } from '@/lib/category-write';
 import { Category } from '@/lib/models/Category';
+import { Page } from '@/lib/models/Page';
 import { logAdminAction } from '@/lib/models/AuditLog';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,16 @@ export async function POST(req: Request) {
     }
 
     await ensureCategories();
+    if (parsed.data.pageSlug) {
+      const pageExists = await Page.exists({ slug: parsed.data.pageSlug });
+      if (!pageExists) {
+        return NextResponse.json(
+          { error: `Linked page "/pages/${parsed.data.pageSlug}" does not exist. Create it in Pages first.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const existing = await Category.findOne({ slug: parsed.data.slug }).lean();
     if (existing) {
       return NextResponse.json(

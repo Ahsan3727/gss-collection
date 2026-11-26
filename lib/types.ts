@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const DEFAULT_CATEGORY_SLUGS = ['ladies', 'gents', 'gems'] as const;
 export const PRODUCT_CATEGORIES = DEFAULT_CATEGORY_SLUGS;
+export const CATEGORY_TARGET_TYPES = ['collection', 'page'] as const;
 export const PRODUCT_KINDS = ['ring', 'bracelet', 'stone'] as const;
 export const HOME_KIND_FILTERS = ['all', 'ring', 'bracelet', 'stone'] as const;
 export const PRODUCT_STATUSES = ['active', 'draft', 'archived'] as const;
@@ -17,6 +18,7 @@ export const FULFIL_STATUSES = [
 export const DISCOUNT_TYPES = ['pct', 'fixed', 'ship'] as const;
 
 export type ProductCategory = string;
+export type CategoryTargetType = (typeof CATEGORY_TARGET_TYPES)[number];
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
 export type HomeKindFilter = (typeof HOME_KIND_FILTERS)[number];
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
@@ -292,6 +294,8 @@ export interface CategoryRecord {
   name: string;
   subtitle: string;
   description: string;
+  targetType?: CategoryTargetType;
+  pageSlug?: string;
   defaultKind: ProductKind;
   homeKindFilter: HomeKindFilter;
   sortOrder: number;
@@ -301,6 +305,17 @@ export interface CategoryRecord {
   productCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export function getCategoryHref(cat: {
+  slug: string;
+  targetType?: CategoryTargetType;
+  pageSlug?: string;
+}): string {
+  if (cat.targetType === 'page' && cat.pageSlug) {
+    return `/pages/${cat.pageSlug}`;
+  }
+  return `/collections/${cat.slug}`;
 }
 
 export interface HomeCategoryShowcase {

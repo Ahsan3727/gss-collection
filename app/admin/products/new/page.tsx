@@ -9,7 +9,7 @@ export default async function AdminNewProductPage({
 }: {
   searchParams?: { cat?: string };
 }) {
-  const categories = await loadCategories(true);
+  const categories = (await loadCategories(true)).filter((c) => c.targetType !== 'page');
   const categoryOptions = categories.map((c) => ({
     slug: c.slug,
     name: c.name,

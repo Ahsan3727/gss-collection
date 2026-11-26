@@ -558,4 +558,79 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
     });
     expect(delOk.status).toBe(200);
   });
+
+  it('links CMS pages as Page-type categories, rejects products inside them, and syncs page slug renames', async () => {
+    mockSessionState.session = {
+      user: { id: 'a1', email: 'admin@gsscollection.pk', name: 'Admin', role: 'admin' },
+    };
+
+    await Page.create({
+      slug: 'size-guide',
+      title: 'Ring Sizing Guide',
+      body: 'Measure the inner ring diameter in millimetres.',
+    });
+
+    // Linking to non-existent page fails
+    const missingPageRes = await createCategory(
+      jsonReq('http://localhost/api/admin/categories', 'POST', {
+        name: 'Care Info',
+        targetType: 'page',
+        pageSlug: 'does-not-exist',
+      })
+    );
+    expect(missingPageRes.status).toBe(400);
+
+    // Valid CMS Page category succeeds with showOnHome forced to false
+    const createPageCatRes = await createCategory(
+      jsonReq('http://localhost/api/admin/categories', 'POST', {
+        name: 'Size Guide',
+        slug: 'size-guide-nav',
+        targetType: 'page',
+        pageSlug: 'size-guide',
+        showOnHome: true,
+        showInNav: true,
+      })
+    );
+    expect(createPageCatRes.status).toBe(201);
+    const createdCat = (await createPageCatRes.json()).category;
+    expect(createdCat.targetType).toBe('page');
+    expect(createdCat.pageSlug).toBe('size-guide');
+    expect(createdCat.showOnHome).toBe(false);
+
+    // Reject creating products inside a CMS Page category
+    const prodInPageRes = await createProduct(
+      jsonReq('http://localhost/api/products', 'POST', {
+        title: 'Invalid Product',
+        handle: 'invalid-product',
+        cat: 'size-guide-nav',
+        kind: 'ring',
+        desc: 'Should fail.',
+        base: 5000,
+        stones: ['garnet'],
+        sizes: ['6'],
+        photos: ['/images/products/crimson-halo-ring-0.jpg'],
+        status: 'active',
+        stock: { 'garnet:6': 1 },
+      })
+    );
+    expect(prodInPageRes.status).toBe(400);
+
+    // Page-type categories never render as homepage product showcase rows
+    const showcases = await getHomeCategoryShowcases();
+    expect(showcases.some((s) => s.handle === 'size-guide-nav')).toBe(false);
+
+    // Renaming the CMS Page slug automatically updates linked category pageSlug
+    const renamePageRes = await patchPage(
+      jsonReq('http://localhost', 'PATCH', {
+        slug: 'ring-size-chart',
+        title: 'Ring Size Chart',
+        body: 'Updated sizing table.',
+      }),
+      { params: { slug: 'size-guide' } }
+    );
+    expect(renamePageRes.status).toBe(200);
+
+    const syncedCat = await Category.findOne({ slug: 'size-guide-nav' }).lean();
+    expect(syncedCat?.pageSlug).toBe('ring-size-chart');
+  });
 });

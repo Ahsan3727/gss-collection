@@ -32,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     await connectDB();
     const [categories, products, pages] = await Promise.all([
-      Category.find({ active: true }).select('slug updatedAt').lean(),
+      Category.find({ active: true, targetType: { $ne: 'page' } }).select('slug updatedAt').lean(),
       Product.find({ status: 'active' }).select('handle updatedAt').lean(),
       Page.find().select('slug updatedAt').lean(),
     ]);

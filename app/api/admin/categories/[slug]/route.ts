@@ -4,6 +4,7 @@ import { requireAdminApi } from '@/lib/admin-auth';
 import { ensureCategories } from '@/lib/categories';
 import { parseCategoryWrite } from '@/lib/category-write';
 import { Category } from '@/lib/models/Category';
+import { Page } from '@/lib/models/Page';
 import { Product } from '@/lib/models/Product';
 import { logAdminAction } from '@/lib/models/AuditLog';
 
@@ -21,6 +22,16 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
     }
 
     await ensureCategories();
+    if (parsed.data.pageSlug) {
+      const pageExists = await Page.exists({ slug: parsed.data.pageSlug });
+      if (!pageExists) {
+        return NextResponse.json(
+          { error: `Linked page "/pages/${parsed.data.pageSlug}" does not exist. Create it in Pages first.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const category = await Category.findOne({ slug: lookupSlug });
     if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
@@ -76,6 +87,7 @@ export async function DELETE(_req: Request, { params }: { params: { slug: string
   try {
     const lookupSlug = decodeURIComponent(params.slug).toLowerCase().trim();
     await ensureCategories();
+
     const category = await Category.findOne({ slug: lookupSlug });
     if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });

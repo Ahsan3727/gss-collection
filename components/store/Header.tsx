@@ -7,12 +7,14 @@ import { useCart } from '@/lib/cart-context';
 export interface NavCategoryItem {
   slug: string;
   name: string;
+  href?: string;
+  targetType?: 'collection' | 'page';
 }
 
 const DEFAULT_NAV_CATEGORIES: NavCategoryItem[] = [
-  { slug: 'ladies', name: 'Ladies Rings' },
-  { slug: 'gents', name: 'Gents Rings' },
-  { slug: 'gems', name: 'Natural Gems' },
+  { slug: 'ladies', name: 'Ladies Rings', href: '/collections/ladies', targetType: 'collection' },
+  { slug: 'gents', name: 'Gents Rings', href: '/collections/gents', targetType: 'collection' },
+  { slug: 'gems', name: 'Natural Gems', href: '/collections/gems', targetType: 'collection' },
 ];
 
 export default function Header({ categories = DEFAULT_NAV_CATEGORIES }: { categories?: NavCategoryItem[] }) {
@@ -21,7 +23,7 @@ export default function Header({ categories = DEFAULT_NAV_CATEGORIES }: { catego
 
   const mobileNavLinks = [
     { href: '/collections/all', label: 'All Jewellery' },
-    ...categories.map((cat) => ({ href: `/collections/${cat.slug}`, label: cat.name })),
+    ...categories.map((cat) => ({ href: cat.href || `/collections/${cat.slug}`, label: cat.name })),
     { href: '/wishlist', label: 'Wishlist' },
     { href: '/track-order', label: 'Track Order' },
   ];
@@ -69,7 +71,7 @@ export default function Header({ categories = DEFAULT_NAV_CATEGORIES }: { catego
           {categories.map((cat) => (
             <Link
               key={cat.slug}
-              href={`/collections/${cat.slug}`}
+              href={cat.href || `/collections/${cat.slug}`}
               className="text-xs tracking-[0.14em] uppercase font-medium text-ink hover:underline underline-offset-8 py-2 whitespace-nowrap"
             >
               {cat.name}
@@ -154,7 +156,7 @@ export default function Header({ categories = DEFAULT_NAV_CATEGORIES }: { catego
         >
           {mobileNavLinks.map((item) => (
             <Link
-              key={item.href}
+              key={`${item.href}-${item.label}`}
               href={item.href}
               onClick={() => setMobileMenuOpen(false)}
               className="min-h-[44px] flex items-center text-xs uppercase tracking-[0.16em] font-medium text-white hover:text-neutral-300 transition-colors focus-visible:outline-white focus-visible:outline-offset-[-2px]"

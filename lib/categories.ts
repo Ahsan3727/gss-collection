@@ -10,6 +10,8 @@ export const DEFAULT_CATEGORIES: CategoryRecord[] = [
     name: 'Ladies Rings',
     subtitle: 'For Her',
     description: 'Delicate halo solitaires, vintage cluster rings, and timeless stacking pieces.',
+    targetType: 'collection',
+    pageSlug: '',
     defaultKind: 'ring',
     homeKindFilter: 'ring',
     sortOrder: 1,
@@ -22,6 +24,8 @@ export const DEFAULT_CATEGORIES: CategoryRecord[] = [
     name: 'Gents Rings',
     subtitle: 'For Him',
     description: 'Heavyweight signet rings, rectangular bezels, and bold handcrafted silver bands.',
+    targetType: 'collection',
+    pageSlug: '',
     defaultKind: 'ring',
     homeKindFilter: 'ring',
     sortOrder: 2,
@@ -34,6 +38,8 @@ export const DEFAULT_CATEGORIES: CategoryRecord[] = [
     name: 'Natural Gems & Bracelets',
     subtitle: 'Untreated Stones',
     description: 'Collector-grade untreated gemstones, natural minerals, and silver stone bracelets.',
+    targetType: 'collection',
+    pageSlug: '',
     defaultKind: 'stone',
     homeKindFilter: 'all',
     sortOrder: 3,
@@ -42,6 +48,14 @@ export const DEFAULT_CATEGORIES: CategoryRecord[] = [
     active: true,
   },
 ];
+
+function normalizeCategoryRecord(raw: CategoryRecord): CategoryRecord {
+  return {
+    ...raw,
+    targetType: raw.targetType === 'page' ? 'page' : 'collection',
+    pageSlug: raw.pageSlug || '',
+  };
+}
 
 /**
  * Seeds default store categories atomically once when the collection is completely empty so
@@ -66,7 +80,8 @@ export async function loadCategories(includeInactive = false): Promise<CategoryR
   await ensureCategories();
   const query = includeInactive ? {} : { active: true };
   const rows = await Category.find(query).sort({ sortOrder: 1, createdAt: 1 }).lean();
-  return JSON.parse(JSON.stringify(rows || [])) as CategoryRecord[];
+  const serialized = JSON.parse(JSON.stringify(rows || [])) as CategoryRecord[];
+  return serialized.map(normalizeCategoryRecord);
 }
 
 const getCachedActiveCategories = unstable_cache(

@@ -109,7 +109,9 @@ function matchesHomeKindFilter(
 const getCachedHomeCategoryShowcases = unstable_cache(
   async (): Promise<HomeCategoryShowcase[]> => {
     await connectDB();
-    const activeCategories = (await loadCategories(false)).filter((c) => c.showOnHome);
+    const activeCategories = (await loadCategories(false)).filter(
+      (c) => c.targetType !== 'page' && c.showOnHome
+    );
     if (activeCategories.length === 0) return [];
 
     const slugs = activeCategories.map((c) => c.slug);
@@ -193,41 +195,41 @@ export async function getCollectionProducts(
       if (handle === 'sale') {
         query.compareAt = { $exists: true, $ne: null };
       } else if (handle !== 'all' && handle !== 'new-arrivals' && handle !== 'best-sellers') {
-        if (activeCats.some((c) => c.slug === handle)) {
-          query.cat = handle;
-        } else {
-          const mappedKey = STONE_HANDLE_TO_KEY[handle] || handle.replace(/-/g, '');
-          query.stones = { $in: [handle, mappedKey] };
+          if (activeCats.some((c) => c.slug === handle && c.targetType !== 'page')) {
+            query.cat = handle;
+          } else {
+            const mappedKey = STONE_HANDLE_TO_KEY[handle] || handle.replace(/-/g, '');
+            query.stones = { $in: [handle, mappedKey] };
+          }
         }
-      }
 
-      if (safeStone) {
-        query.stones = safeStone;
-      }
+        if (safeStone) {
+          query.stones = safeStone;
+        }
 
-      let sortOption: Record<string, 1 | -1> = { createdAt: -1 };
-      if (safeSort === 'price-asc') sortOption = { base: 1 };
-      else if (safeSort === 'price-desc') sortOption = { base: -1 };
-      else if (safeSort === 'best' || handle === 'best-sellers') sortOption = { sold: -1 };
+        let sortOption: Record<string, 1 | -1> = { createdAt: -1 };
+        if (safeSort === 'price-asc') sortOption = { base: 1 };
+        else if (safeSort === 'price-desc') sortOption = { base: -1 };
+        else if (safeSort === 'best' || handle === 'best-sellers') sortOption = { sold: -1 };
 
-      const [total, rawProducts] = await Promise.all([
-        Product.countDocuments(query),
-        Product.find(query)
-          .sort(sortOption)
-          .skip((safePage - 1) * safeLimit)
-          .limit(safeLimit)
-          .lean(),
-      ]);
+        const [total, rawProducts] = await Promise.all([
+          Product.countDocuments(query),
+          Product.find(query)
+            .sort(sortOption)
+            .skip((safePage - 1) * safeLimit)
+            .limit(safeLimit)
+            .lean(),
+        ]);
 
-      return {
-        products: JSON.parse(JSON.stringify(rawProducts || [])) as ProductRecord[],
-        total,
-        page: safePage,
-        totalPages: Math.max(1, Math.ceil(total / safeLimit)),
-      };
-    },
-    ['collection-products', handle, safeStone, safeSort, String(safePage), String(safeLimit)],
-    { tags: ['products', 'categories'], revalidate: 300 }
+        return {
+          products: JSON.parse(JSON.stringify(rawProducts || [])) as ProductRecord[],
+          total,
+          page: safePage,
+          totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+        };
+      },
+      ['collection-products', handle, safeStone, safeSort, String(safePage), String(safeLimit)],
+        { tags: ['products', 'categories'], revalidate: 300 }
   )();
 }
 

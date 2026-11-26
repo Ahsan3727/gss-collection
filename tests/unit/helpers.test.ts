@@ -10,7 +10,8 @@ import { parseSentryDsn, reportError, sanitizeTelemetryString } from '@/lib/moni
 import { getSiteUrl } from '@/lib/env';
 import { selectMoreCollagePhotos } from '@/lib/catalogue';
 import { shrinkImage, uploadAdminImage } from '@/lib/client-image';
-import { HeroSettingsSchema, isSafeHeroImageUrl, isSafeHeroLinkHref } from '@/lib/types';
+import { parseCategoryWrite } from '@/lib/category-write';
+import { getCategoryHref, HeroSettingsSchema, isSafeHeroImageUrl, isSafeHeroLinkHref } from '@/lib/types';
 
 describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => {
   it('formats PKR currency consistently', () => {
@@ -218,6 +219,32 @@ describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => 
       await expect(uploadAdminImage(tinyPng, 'hero')).rejects.toThrow(/Cloudinary down/i);
     } finally {
       fetchSpy.mockRestore();
+    }
+  });
+
+  it('resolves category links and validates page-type categories', () => {
+    expect(getCategoryHref({ slug: 'ladies', targetType: 'collection' })).toBe('/collections/ladies');
+    expect(
+      getCategoryHref({ slug: 'size-guide', targetType: 'page', pageSlug: 'size-guide' })
+    ).toBe('/pages/size-guide');
+
+    const missingPage = parseCategoryWrite({
+      name: 'Size Guide',
+      targetType: 'page',
+      pageSlug: '',
+    });
+    expect('error' in missingPage).toBe(true);
+
+    const validPageCat = parseCategoryWrite({
+      name: 'Size Guide',
+      targetType: 'page',
+      pageSlug: 'size-guide',
+      showOnHome: true,
+    });
+    expect('data' in validPageCat).toBe(true);
+    if ('data' in validPageCat) {
+      expect(validPageCat.data.targetType).toBe('page');
+      expect(validPageCat.data.showOnHome).toBe(false);
     }
   });
 });

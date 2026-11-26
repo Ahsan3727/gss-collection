@@ -120,11 +120,10 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
           <Link
             key={st}
             href={buildProductsHref({ status: st, cat: catFilter, q: queryParam, page: 1 })}
-            className={`text-xs uppercase px-3.5 min-h-[44px] inline-flex items-center border transition ${
-              statusFilter === st
+            className={`text-xs uppercase px-3.5 min-h-[44px] inline-flex items-center border transition ${statusFilter === st
                 ? 'bg-ink text-white border-ink font-semibold'
                 : 'bg-white border-line text-ink-2 hover:border-ink'
-            }`}
+              }`}
           >
             {st}
           </Link>
@@ -134,27 +133,29 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
       <div className="flex flex-wrap gap-2 mb-5">
         <Link
           href={buildProductsHref({ status: statusFilter, cat: 'all', q: queryParam, page: 1 })}
-          className={`text-xs px-3 min-h-[44px] inline-flex items-center border transition ${
-            catFilter === 'all'
+          className={`text-xs px-3 min-h-[44px] inline-flex items-center border transition ${catFilter === 'all'
               ? 'bg-ink text-white border-ink font-semibold'
               : 'bg-white border-line text-ink-2 hover:border-ink'
-          }`}
+            }`}
         >
           All Categories
         </Link>
-        {categories.map((c) => (
-          <Link
-            key={c.slug}
-            href={buildProductsHref({ status: statusFilter, cat: c.slug, q: queryParam, page: 1 })}
-            className={`text-xs px-3 min-h-[44px] inline-flex items-center border transition ${
-              catFilter === c.slug
-                ? 'bg-ink text-white border-ink font-semibold'
-                : 'bg-white border-line text-ink-2 hover:border-ink'
-            }`}
-          >
-            {c.name}
-          </Link>
-        ))}
+          {
+            categories
+          .filter((c) => c.targetType !== 'page')
+              .map((c) => (
+                <Link
+                  key={c.slug}
+                  href={buildProductsHref({ status: statusFilter, cat: c.slug, q: queryParam, page: 1 })}
+                  className={`text-xs px-3 min-h-[44px] inline-flex items-center border transition ${catFilter === c.slug
+                      ? 'bg-ink text-white border-ink font-semibold'
+                      : 'bg-white border-line text-ink-2 hover:border-ink'
+                    }`}
+                >
+                  {c.name}
+                </Link>
+              ))
+          }
       </div>
 
       {/* Mobile Card List */}
@@ -177,9 +178,8 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="font-medium text-sm text-ink truncate">{p.title}</h2>
                   <span
-                    className={`text-xs font-semibold uppercase px-2 py-0.5 rounded shrink-0 ${
-                      STATUS_BADGE[p.status || 'active'] || 'bg-neutral-200 text-ink-2'
-                    }`}
+                    className={`text-xs font-semibold uppercase px-2 py-0.5 rounded shrink-0 ${STATUS_BADGE[p.status || 'active'] || 'bg-neutral-200 text-ink-2'
+                      }`}
                   >
                     {p.status || 'active'}
                   </span>
@@ -248,9 +248,8 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
                 </td>
                 <td className="py-3 px-4">
                   <span
-                    className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${
-                      STATUS_BADGE[p.status || 'active'] || 'bg-neutral-200 text-ink-2'
-                    }`}
+                    className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${STATUS_BADGE[p.status || 'active'] || 'bg-neutral-200 text-ink-2'
+                      }`}
                   >
                     {p.status || 'active'}
                   </span>

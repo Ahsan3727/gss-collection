@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
+import { Category } from '@/lib/models/Category';
 import { Page } from '@/lib/models/Page';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
@@ -56,13 +57,21 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
     page.metaDesc = parsed.data.metaDesc;
     await page.save();
 
+    if (page.slug !== previousSlug) {
+      await Category.updateMany({ pageSlug: previousSlug }, { $set: { pageSlug: page.slug } });
+    }
+
     await logAdminAction(auth.user.email, 'page_update', 'Page', page.slug, {
       title: page.title,
     });
 
     revalidateTag('pages');
+    revalidateTag('categories');
     revalidateTag(`page:${previousSlug}`);
     revalidateTag(`page:${page.slug}`);
+    revalidatePath('/', 'layout');
+    revalidatePath('/');
+    revalidatePath('/sitemap.xml');
 
     return NextResponse.json({ success: true, page: JSON.parse(JSON.stringify(page)) });
   } catch (err: unknown) {

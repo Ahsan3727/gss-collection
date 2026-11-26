@@ -78,11 +78,13 @@ export default async function AdminEditProductPage({ params }: { params: { id: s
         productId={product.id || product.handle}
         initial={initial}
         stoneDeltas={readDeltaMap(product.stoneDeltas)}
-        categories={categories.map((c) => ({
-          slug: c.slug,
-          name: c.name,
-          defaultKind: c.defaultKind,
-        }))}
+        categories={categories
+          .filter((c) => c.targetType !== 'page')
+          .map((c) => ({
+            slug: c.slug,
+            name: c.name,
+            defaultKind: c.defaultKind,
+          }))}
       />
     </div>
   );

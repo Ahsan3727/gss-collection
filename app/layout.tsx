@@ -10,6 +10,7 @@ import { getActiveCategories } from '@/lib/categories';
 import { getStoreSettings } from '@/lib/settings';
 import { getSiteUrl } from '@/lib/env';
 import { formatDisplayPhone } from '@/lib/contact';
+import { getCategoryHref } from '@/lib/types';
 
 const CartDrawer = dynamic(() => import('@/components/store/CartDrawer'), {
   ssr: false,
@@ -72,7 +73,12 @@ export default async function RootLayout({
   ]);
   const navCategories = activeCategories
     .filter((cat) => cat.showInNav)
-    .map((cat) => ({ slug: cat.slug, name: cat.name }));
+    .map((cat) => ({
+      slug: cat.slug,
+      name: cat.name,
+      href: getCategoryHref(cat),
+      targetType: cat.targetType,
+    }));
   const phone = formatDisplayPhone(settings.contact.phone);
 
   const orgJsonLd = {

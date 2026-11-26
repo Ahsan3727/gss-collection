@@ -4,13 +4,26 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
 import { CATEGORY_LIMITS, slugifyCategory } from '@/lib/category-write';
-import type { CategoryRecord, HomeKindFilter, ProductKind } from '@/lib/types';
+import {
+  getCategoryHref,
+  type CategoryRecord,
+  type CategoryTargetType,
+  type HomeKindFilter,
+  type ProductKind,
+} from '@/lib/types';
+
+interface AvailablePageOption {
+  slug: string;
+  title: string;
+}
 
 interface FormValues {
   name: string;
   slug: string;
   subtitle: string;
   description: string;
+  targetType: CategoryTargetType;
+  pageSlug: string;
   defaultKind: ProductKind;
   homeKindFilter: HomeKindFilter;
   sortOrder: number;
@@ -24,6 +37,8 @@ const BLANK: FormValues = {
   slug: '',
   subtitle: '',
   description: '',
+  targetType: 'collection',
+  pageSlug: '',
   defaultKind: 'ring',
   homeKindFilter: 'all',
   sortOrder: 0,
@@ -57,11 +72,13 @@ function toValues(cat: CategoryRecord): FormValues {
     slug: cat.slug,
     subtitle: cat.subtitle || '',
     description: cat.description || '',
+    targetType: cat.targetType === 'page' ? 'page' : 'collection',
+    pageSlug: cat.pageSlug || '',
     defaultKind: cat.defaultKind || 'ring',
     homeKindFilter: cat.homeKindFilter || 'all',
     sortOrder: Number.isFinite(cat.sortOrder) ? cat.sortOrder : 0,
     showInNav: cat.showInNav ?? true,
-    showOnHome: cat.showOnHome ?? true,
+    showOnHome: cat.targetType === 'page' ? false : (cat.showOnHome ?? true),
     active: cat.active ?? true,
   };
 }
@@ -72,8 +89,10 @@ function sortCategories(list: CategoryRecord[]): CategoryRecord[] {
 
 export default function CategoriesClient({
   initialCategories,
+  availablePages = [],
 }: {
   initialCategories: CategoryRecord[];
+  availablePages?: AvailablePageOption[];
 }) {
   const [categories, setCategories] = useState<CategoryRecord[]>(() =>
     sortCategories(initialCategories)
@@ -99,6 +118,7 @@ export default function CategoriesClient({
 
   const isNew = mode === 'new';
   const isEdit = mode === 'edit';
+  const isPageLink = values.targetType === 'page';
   const dirty = mode !== 'none' && JSON.stringify(values) !== JSON.stringify(saved);
 
   useEffect(() => {
@@ -196,6 +216,10 @@ export default function CategoriesClient({
       setError('Enter a valid category web address (at least 2 characters).');
       return;
     }
+    if (values.targetType === 'page' && !values.pageSlug.trim()) {
+      setError('Select which CMS Page this category should open.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -211,6 +235,8 @@ export default function CategoriesClient({
           slug: effectiveSlug,
           subtitle: values.subtitle.trim(),
           description: values.description.trim(),
+          pageSlug: values.pageSlug.trim(),
+          showOnHome: values.targetType === 'page' ? false : values.showOnHome,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -234,10 +260,11 @@ export default function CategoriesClient({
       setSaved(next);
       setSlugTouched(true);
       setSlugLocked(true);
+      const targetHref = getCategoryHref(record);
       setMessage(
         isNew
-          ? `Category created. Storefront URL: /collections/${record.slug}`
-          : 'Category updated and live storefront cache refreshed.'
+            ? `Category created. Storefront link: ${targetHref}`
+            : 'Category updated and live storefront cache refreshed.'
       );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not save category.');
@@ -292,6 +319,8 @@ export default function CategoriesClient({
           {categories.map((cat) => {
             const selected = isEdit && activeSlug === cat.slug;
             const count = cat.productCount ?? 0;
+            const isPage = cat.targetType === 'page';
+            const liveHref = getCategoryHref(cat);
             return (
               <li
                 key={cat.slug}
@@ -310,11 +339,11 @@ export default function CategoriesClient({
                       {cat.name}
                     </span>
                     <span className="text-xs font-semibold text-ink-2 shrink-0">
-                      {count} {count === 1 ? 'article' : 'articles'}
+                      {isPage ? 'Page link' : `${count} ${count === 1 ? 'article' : 'articles'}`}
                     </span>
                   </div>
                   <span className="block text-xs font-mono text-ink-2 truncate mt-0.5">
-                    /collections/{cat.slug}
+                    {liveHref}
                   </span>
                   <div className="flex flex-wrap gap-1.5 mt-2 text-xs">
                     {!cat.active && (
@@ -322,12 +351,17 @@ export default function CategoriesClient({
                         Hidden
                       </span>
                     )}
+                    {isPage && (
+                      <span className="px-2 py-0.5 bg-neutral-900 text-white font-semibold uppercase">
+                        CMS Page
+                      </span>
+                    )}
                     {cat.active && cat.showInNav && (
                       <span className="px-2 py-0.5 bg-emerald-100 text-ok font-semibold uppercase">
                         Nav
                       </span>
                     )}
-                    {cat.active && cat.showOnHome && (
+                    {!isPage && cat.active && cat.showOnHome && (
                       <span className="px-2 py-0.5 bg-stone-100 text-ink font-semibold uppercase">
                         Homepage
                       </span>
@@ -339,21 +373,32 @@ export default function CategoriesClient({
                 </button>
 
                 <div className="flex flex-wrap items-center gap-4 pt-1 text-xs font-semibold uppercase tracking-wider">
-                  <Link
-                    href={`/admin/products/new?cat=${encodeURIComponent(cat.slug)}`}
-                    className="min-h-[44px] inline-flex items-center text-ink underline hover:text-ink-2"
-                  >
-                    + Add article here
-                  </Link>
-                  <Link
-                    href={`/admin/products?cat=${encodeURIComponent(cat.slug)}`}
-                    className="min-h-[44px] inline-flex items-center text-ink-2 underline hover:text-ink"
-                  >
-                    Manage articles ({count})
-                  </Link>
+                  {isPage ? (
+                    <Link
+                      href="/admin/pages"
+                      className="min-h-[44px] inline-flex items-center text-ink underline hover:text-ink-2"
+                    >
+                      Edit page content
+                    </Link>
+                  ) : (
+                    <>
+                      <Link
+                        href={`/admin/products/new?cat=${encodeURIComponent(cat.slug)}`}
+                        className="min-h-[44px] inline-flex items-center text-ink underline hover:text-ink-2"
+                      >
+                        + Add article here
+                      </Link>
+                      <Link
+                        href={`/admin/products?cat=${encodeURIComponent(cat.slug)}`}
+                        className="min-h-[44px] inline-flex items-center text-ink-2 underline hover:text-ink"
+                      >
+                        Manage articles ({count})
+                      </Link>
+                    </>
+                  )}
                   {cat.active && (
                     <a
-                      href={`/collections/${cat.slug}`}
+                      href={liveHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="min-h-[44px] inline-flex items-center text-ink-2 underline hover:text-ink ml-auto"
@@ -374,11 +419,9 @@ export default function CategoriesClient({
           <div className={`${cardClass} p-6 md:p-8`}>
             <h2 className={`${cardTitleClass} mb-2`}>Edit or add a category</h2>
             <p className="text-xs text-ink-2 leading-relaxed max-w-lg mb-4">
-              Select an existing category on the left to rename it, update its storefront address,
-              control navigation/homepage visibility, or click <strong>Add category</strong> to
-              create a new section. Every active category gets a clean storefront URL at{' '}
-              <span className="font-mono text-ink">/collections/&lt;web-address&gt;</span> and
-              appears directly when adding articles.
+              Choose <strong>Product Collection</strong> for categories containing articles (such as
+              Ladies Rings or Silver Bracelets), or choose <strong>CMS Page Link</strong> to put an
+              info page (such as Size Guide) straight into your top and mobile navigation menu.
             </p>
             {message && (
               <p
@@ -402,12 +445,12 @@ export default function CategoriesClient({
               </h2>
               {isEdit && activeRecord?.active && (
                 <a
-                  href={`/collections/${activeSlug}`}
+                  href={getCategoryHref(activeRecord)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline min-h-[44px] inline-flex items-center"
                 >
-                  Open /collections/{activeSlug} ↗
+                  Open {getCategoryHref(activeRecord)} ↗
                 </a>
               )}
             </div>
@@ -427,6 +470,74 @@ export default function CategoriesClient({
             )}
 
             <div className="space-y-4">
+              <div>
+                <label htmlFor="cat-target-type" className={labelClass}>
+                  Category Type *
+                </label>
+                <select
+                  id="cat-target-type"
+                  value={values.targetType}
+                  onChange={(e) => {
+                    const nextType = e.target.value as CategoryTargetType;
+                    setValues((v) => ({
+                      ...v,
+                      targetType: nextType,
+                      showOnHome: nextType === 'page' ? false : v.showOnHome,
+                    }));
+                  }}
+                  className={inputClass}
+                >
+                  <option value="collection">Product Collection (/collections/...)</option>
+                  <option value="page">CMS Page Link (opens a page like Size Guide)</option>
+                </select>
+              </div>
+
+              <div className="border border-line bg-ground p-3.5 space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <label htmlFor="cat-page-slug" className="block uppercase tracking-wider font-semibold text-ink">
+                    {isPageLink ? 'Linked CMS Page *' : 'Optional Collection Guide Page'}
+                  </label>
+                  <Link href="/admin/pages" className="text-xs underline text-ink-2 hover:text-ink">
+                    Manage / Create Pages ↗
+                  </Link>
+                </div>
+                <select
+                  id="cat-page-slug"
+                  value={values.pageSlug}
+                  onChange={(e) => {
+                    const chosenSlug = e.target.value;
+                    const chosenPage = availablePages.find((p) => p.slug === chosenSlug);
+                    setValues((v) => {
+                      const nextName =
+                        v.targetType === 'page' && !v.name.trim() && chosenPage
+                          ? chosenPage.title
+                          : v.name;
+                      return {
+                        ...v,
+                        pageSlug: chosenSlug,
+                        name: nextName,
+                        slug: slugTouched ? v.slug : slugifyCategory(nextName || chosenSlug),
+                      };
+                    });
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">
+                    {isPageLink ? '-- Select a page from Admin → Pages --' : 'None (no guide banner)'}
+                  </option>
+                  {availablePages.map((p) => (
+                    <option key={p.slug} value={p.slug}>
+                      {p.title} (/pages/{p.slug})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-ink-2">
+                  {isPageLink
+                    ? 'Nav links open this page directly instead of showing an empty product grid.'
+                    : 'Optionally display a direct link to this guide inside the collection page header (e.g. Ring Sizing Guide).'}
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="cat-name" className={labelClass}>
@@ -445,24 +556,26 @@ export default function CategoriesClient({
                         slug: slugTouched ? v.slug : slugifyCategory(nextName),
                       }));
                     }}
-                    placeholder="e.g. Silver Bracelets"
+                    placeholder={isPageLink ? 'e.g. Size Guide' : 'e.g. Silver Bracelets'}
                     className={inputClass}
                   />
                 </div>
-                <div>
-                  <label htmlFor="cat-subtitle" className={labelClass}>
-                    Short Eyebrow Label
-                  </label>
-                  <input
-                    id="cat-subtitle"
-                    type="text"
-                    maxLength={CATEGORY_LIMITS.subtitleMax}
-                    value={values.subtitle}
-                    onChange={(e) => setValues((v) => ({ ...v, subtitle: e.target.value }))}
-                    placeholder="e.g. Handcrafted Wrists"
-                    className={inputClass}
-                  />
-                </div>
+                {!isPageLink && (
+                  <div>
+                    <label htmlFor="cat-subtitle" className={labelClass}>
+                      Short Eyebrow Label
+                    </label>
+                    <input
+                      id="cat-subtitle"
+                      type="text"
+                      maxLength={CATEGORY_LIMITS.subtitleMax}
+                      value={values.subtitle}
+                      onChange={(e) => setValues((v) => ({ ...v, subtitle: e.target.value }))}
+                      placeholder="e.g. Handcrafted Wrists"
+                      className={inputClass}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -483,7 +596,7 @@ export default function CategoriesClient({
                     onBlur={() =>
                       setValues((v) => ({ ...v, slug: slugifyCategory(v.slug || v.name) }))
                     }
-                    placeholder="e.g. silver-bracelets"
+                    placeholder={isPageLink ? 'e.g. size-guide' : 'e.g. silver-bracelets'}
                     className={`${inputClass} font-mono ${slugLocked ? 'bg-ground text-ink-2' : ''}`}
                   />
                   {slugLocked && (
@@ -497,10 +610,25 @@ export default function CategoriesClient({
                   )}
                 </div>
                 <p className="text-xs text-ink-2 mt-1">
-                  Collection URL:{' '}
-                  <span className="font-mono text-ink">/collections/{effectiveSlug || '...'}</span>
+                  {isPageLink ? (
+                    <>
+                      Opens{' '}
+                      <span className="font-mono text-ink">
+                        /pages/{values.pageSlug || '...'}
+                      </span>{' '}
+                      (and <span className="font-mono">/collections/{effectiveSlug || '...'}</span>{' '}
+                      redirects there cleanly).
+                    </>
+                  ) : (
+                    <>
+                      Collection URL:{' '}
+                      <span className="font-mono text-ink">
+                        /collections/{effectiveSlug || '...'}
+                      </span>
+                    </>
+                  )}
                 </p>
-                {isEdit && !slugLocked && (
+                {!isPageLink && isEdit && !slugLocked && (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
                     Changing the web address updates all existing articles inside this category to the
                     new URL automatically, though old bookmarks will need the new URL.
@@ -508,65 +636,90 @@ export default function CategoriesClient({
                 )}
               </div>
 
-              <div>
-                <label htmlFor="cat-desc" className={labelClass}>
-                  Collection Description
-                </label>
-                <textarea
-                  id="cat-desc"
-                  rows={2}
-                  maxLength={CATEGORY_LIMITS.descriptionMax}
-                  value={values.description}
-                  onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-                  placeholder="Shown under the heading on the collection page and in search results."
-                  className={`${inputClass} resize-y`}
-                />
-              </div>
+              {!isPageLink && (
+                <>
+                  <div>
+                    <label htmlFor="cat-desc" className={labelClass}>
+                      Collection Description
+                    </label>
+                    <textarea
+                      id="cat-desc"
+                      rows={2}
+                      maxLength={CATEGORY_LIMITS.descriptionMax}
+                      value={values.description}
+                      onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+                      placeholder="Shown under the heading on the collection page and in search results."
+                      className={`${inputClass} resize-y`}
+                    />
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label htmlFor="cat-default-kind" className={labelClass}>
-                    Default Article Type
-                  </label>
-                  <select
-                    id="cat-default-kind"
-                    value={values.defaultKind}
-                    onChange={(e) =>
-                      setValues((v) => ({ ...v, defaultKind: e.target.value as ProductKind }))
-                    }
-                    className={inputClass}
-                  >
-                    {KIND_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label htmlFor="cat-default-kind" className={labelClass}>
+                        Default Article Type
+                      </label>
+                      <select
+                        id="cat-default-kind"
+                        value={values.defaultKind}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, defaultKind: e.target.value as ProductKind }))
+                        }
+                        className={inputClass}
+                      >
+                        {KIND_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div>
-                  <label htmlFor="cat-home-filter" className={labelClass}>
-                    Homepage Row Shows
-                  </label>
-                  <select
-                    id="cat-home-filter"
-                    value={values.homeKindFilter}
-                    onChange={(e) =>
-                      setValues((v) => ({ ...v, homeKindFilter: e.target.value as HomeKindFilter }))
-                    }
-                    className={inputClass}
-                  >
-                    {HOME_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div>
+                      <label htmlFor="cat-home-filter" className={labelClass}>
+                        Homepage Row Shows
+                      </label>
+                      <select
+                        id="cat-home-filter"
+                        value={values.homeKindFilter}
+                        onChange={(e) =>
+                          setValues((v) => ({
+                            ...v,
+                            homeKindFilter: e.target.value as HomeKindFilter,
+                          }))
+                        }
+                        className={inputClass}
+                      >
+                        {HOME_FILTER_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
+                    <div>
+                      <label htmlFor="cat-sort" className={labelClass}>
+                        Display Order
+                      </label>
+                      <input
+                        id="cat-sort"
+                        type="number"
+                        inputMode="numeric"
+                        value={values.sortOrder}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, sortOrder: Number(e.target.value) || 0 }))
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {isPageLink && (
                 <div>
                   <label htmlFor="cat-sort" className={labelClass}>
-                    Display Order
+                    Menu Display Order
                   </label>
                   <input
                     id="cat-sort"
@@ -579,7 +732,7 @@ export default function CategoriesClient({
                     className={inputClass}
                   />
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-line">
                 <label className="flex items-center gap-2.5 cursor-pointer min-h-[44px]">
@@ -599,18 +752,22 @@ export default function CategoriesClient({
                     onChange={(e) => setValues((v) => ({ ...v, showInNav: e.target.checked }))}
                     className="w-4 h-4 accent-ink"
                   />
-                  <span className="font-medium text-ink">Show in Nav &amp; Footer</span>
+                  <span className="font-medium text-ink">
+                    {isPageLink ? 'Show in Menu' : 'Show in Nav & Footer'}
+                  </span>
                 </label>
 
-                <label className="flex items-center gap-2.5 cursor-pointer min-h-[44px]">
-                  <input
-                    type="checkbox"
-                    checked={values.showOnHome}
-                    onChange={(e) => setValues((v) => ({ ...v, showOnHome: e.target.checked }))}
-                    className="w-4 h-4 accent-ink"
-                  />
-                  <span className="font-medium text-ink">Show on Homepage</span>
-                </label>
+                {!isPageLink && (
+                  <label className="flex items-center gap-2.5 cursor-pointer min-h-[44px]">
+                    <input
+                      type="checkbox"
+                      checked={values.showOnHome}
+                      onChange={(e) => setValues((v) => ({ ...v, showOnHome: e.target.checked }))}
+                      className="w-4 h-4 accent-ink"
+                    />
+                    <span className="font-medium text-ink">Show on Homepage</span>
+                  </label>
+                )}
               </div>
             </div>
 
@@ -633,7 +790,7 @@ export default function CategoriesClient({
                       description:
                         (activeRecord?.productCount ?? 0) > 0
                           ? `This category still contains ${activeRecord?.productCount} article(s), so deletion will be blocked until those items are moved.`
-                          : 'This permanently removes the category and its /collections/ address.',
+                          : 'This permanently removes the category entry.',
                       confirmLabel: 'Delete Category',
                       onConfirm: () => {
                         void performDelete();
@@ -670,6 +827,6 @@ export default function CategoriesClient({
         destructive
         onConfirm={() => confirmState?.onConfirm()}
       />
-    </div>
+    </div >
   );
 }

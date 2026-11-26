@@ -1,5 +1,12 @@
 import { STONES } from '@/lib/constants';
-import { HOME_KIND_FILTERS, PRODUCT_KINDS, type HomeKindFilter, type ProductKind } from '@/lib/types';
+import {
+  CATEGORY_TARGET_TYPES,
+  HOME_KIND_FILTERS,
+  PRODUCT_KINDS,
+  type CategoryTargetType,
+  type HomeKindFilter,
+  type ProductKind,
+} from '@/lib/types';
 
 export const CATEGORY_LIMITS = {
   nameMin: 2,
@@ -42,6 +49,8 @@ export interface CategoryWriteInput {
   slug: string;
   subtitle: string;
   description: string;
+  targetType: CategoryTargetType;
+  pageSlug: string;
   defaultKind: ProductKind;
   homeKindFilter: HomeKindFilter;
   sortOrder: number;
@@ -57,13 +66,19 @@ export function parseCategoryWrite(body: unknown): { data: CategoryWriteInput } 
 
   const input = body as Record<string, unknown>;
   const name = String(input.name || '').trim();
-  const slug = slugifyCategory(String(input.slug || name));
+  const targetType = String(input.targetType || 'collection');
+  const rawPageSlug = String(input.pageSlug || '').trim();
+  const pageSlug = rawPageSlug ? slugifyCategory(rawPageSlug) : '';
+  const slug = slugifyCategory(String(input.slug || name || pageSlug));
   const subtitle = String(input.subtitle || '').trim();
   const description = String(input.description || '').trim();
   const rawKind = String(input.defaultKind || 'ring');
   const rawFilter = String(input.homeKindFilter || 'all');
   const rawSort = input.sortOrder === undefined || input.sortOrder === '' ? 0 : Number(input.sortOrder);
 
+  if (!CATEGORY_TARGET_TYPES.includes(targetType as CategoryTargetType)) {
+    return { error: 'Category type must be collection or page.' };
+  }
   if (name.length < CATEGORY_LIMITS.nameMin) {
     return { error: `Category name must be at least ${CATEGORY_LIMITS.nameMin} characters.` };
   }
@@ -77,6 +92,12 @@ export function parseCategoryWrite(body: unknown): { data: CategoryWriteInput } 
     return {
       error: `"${slug}" is already reserved by a gemstone or special collection route. Pick another web address.`,
     };
+  }
+  if (targetType === 'page' && !pageSlug) {
+    return { error: 'Select a CMS page to link when Category Type is CMS Page Link.' };
+  }
+  if (pageSlug && !/^[a-z0-9-]+$/.test(pageSlug)) {
+    return { error: 'Linked page slug must use lowercase letters, numbers, and hyphens only.' };
   }
   if (subtitle.length > CATEGORY_LIMITS.subtitleMax) {
     return { error: `Subtitle must be ${CATEGORY_LIMITS.subtitleMax} characters or fewer.` };
@@ -94,17 +115,25 @@ export function parseCategoryWrite(body: unknown): { data: CategoryWriteInput } 
     return { error: 'Sort order must be a valid number.' };
   }
 
+  const normalizedType = targetType as CategoryTargetType;
   return {
     data: {
       name,
       slug,
       subtitle,
       description,
+      targetType: normalizedType,
+      pageSlug,
       defaultKind: rawKind as ProductKind,
       homeKindFilter: rawFilter as HomeKindFilter,
       sortOrder: Math.max(-999, Math.min(999, Math.round(rawSort))),
       showInNav: input.showInNav === undefined ? true : Boolean(input.showInNav),
-      showOnHome: input.showOnHome === undefined ? true : Boolean(input.showOnHome),
+      showOnHome:
+        normalizedType === 'page'
+          ? false
+          : input.showOnHome === undefined
+            ? true
+            : Boolean(input.showOnHome),
       active: input.active === undefined ? true : Boolean(input.active),
     },
   };

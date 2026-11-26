@@ -1,19 +1,30 @@
 import Link from 'next/link';
+import { connectDB } from '@/lib/db';
 import { getCategoriesWithCounts } from '@/lib/categories';
+import { Page } from '@/lib/models/Page';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import CategoriesClient from '@/components/admin/CategoriesClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminCategoriesPage() {
-  const categories = await getCategoriesWithCounts();
+  await connectDB();
+  const [categories, rawPages] = await Promise.all([
+    getCategoriesWithCounts(),
+    Page.find().sort({ title: 1 }).select('slug title').lean(),
+  ]);
+
+  const availablePages = JSON.parse(JSON.stringify(rawPages || [])) as {
+    slug: string;
+    title: string;
+  }[];
 
   return (
     <div className="max-w-site mx-auto px-4 md:px-6 py-8 md:py-10">
       <AdminPageHeader
         eyebrow="Catalogue Structure"
         title={`Categories (${categories.length})`}
-        subtitle="Create or rename shop categories and control how they appear in navigation and on the homepage."
+        subtitle="Create product collections or link CMS pages (like Size Guide) directly into navigation."
         action={
           <Link
             href="/admin/products/new"
@@ -24,7 +35,7 @@ export default async function AdminCategoriesPage() {
         }
       />
 
-      <CategoriesClient initialCategories={categories} />
+      <CategoriesClient initialCategories={categories} availablePages={availablePages} />
     </div>
   );
 }

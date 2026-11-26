@@ -341,6 +341,41 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await page.getByLabel(/Active on store/i).uncheck();
     await page.getByRole('button', { name: /Save Changes/i }).click();
     await expect(page.getByText(/Category updated/i)).toBeVisible();
+
+    // 7. Page-backed Category (Size Guide) -> Mobile Menu opens /pages/size-guide -> /collections redirect -> Delete cleanly
+    const sizeCatName = `Size Guide ${testInfo.project.name}`;
+    const sizeCatSlug = `size-guide-${projSlug}`;
+
+    await page.getByRole('button', { name: /Add category/i }).click();
+    await page.getByLabel(/Category Type/i).selectOption('page');
+    await page.getByLabel(/Linked CMS Page/i).selectOption('size-guide');
+    await page.getByLabel(/Category Name/i).fill(sizeCatName);
+    await page.getByLabel(/Web Address \(Slug\)/i).fill(sizeCatSlug);
+    await page.getByRole('button', { name: /Create Category/i }).click();
+    await expect(page.getByText(/Storefront link: \/pages\/size-guide/i)).toBeVisible();
+
+    // Open mobile drawer menu on '/' and tap the Page-type category
+    await page.goto('/');
+    await page.getByRole('button', { name: /Open navigation menu/i }).click();
+    const sizeNavLink = page.locator('#mobile-store-nav').getByRole('link', { name: sizeCatName });
+    await expect(sizeNavLink).toBeVisible();
+    await expect(sizeNavLink).toHaveAttribute('href', '/pages/size-guide');
+    await sizeNavLink.click();
+    await expect(page).toHaveURL(/\/pages\/size-guide/);
+    await expect(
+      page.getByRole('heading', { level: 1, name: /Ring Siz(?:e|ing) Guide/i })
+    ).toBeVisible();
+
+    // Direct /collections/<page-category-slug> cleanly redirects to /pages/size-guide
+    await page.goto(`/collections/${sizeCatSlug}`);
+    await expect(page).toHaveURL(/\/pages\/size-guide/);
+
+    // Clean up temporary page category (has 0 products, so DELETE succeeds)
+    await page.goto('/admin/categories');
+    await page.getByRole('button', { name: new RegExp(sizeCatName, 'i') }).click();
+    await page.getByRole('button', { name: /^Delete$/i }).click();
+    await page.getByRole('button', { name: /Delete Category/i }).click();
+    await expect(page.getByText(/Category deleted/i)).toBeVisible();
   });
 
   test('zero horizontal overflow and WCAG AA axe compliance across all storefront routes', async ({ page }) => {

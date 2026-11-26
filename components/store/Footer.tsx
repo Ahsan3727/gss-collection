@@ -42,16 +42,18 @@ export default function Footer({
                   All Jewellery
                 </Link>
               </li>
-              {categories.map((cat) => (
-                <li key={cat.slug}>
-                  <Link
-                    href={`/collections/${cat.slug}`}
-                    className="inline-flex items-center min-h-[44px] hover:text-white transition-colors"
-                  >
-                    {cat.name}
-                  </Link>
-                </li>
-              ))}
+              {categories
+                .filter((cat) => cat.targetType !== 'page')
+                .map((cat) => (
+                  <li key={cat.slug}>
+                    <Link
+                      href={cat.href || `/collections/${cat.slug}`}
+                      className="inline-flex items-center min-h-[44px] hover:text-white transition-colors"
+                    >
+                      {cat.name}
+                    </Link>
+                  </li>
+                ))}
               <li>
                 <Link href="/collections/new-arrivals" className="inline-flex items-center min-h-[44px] hover:text-white transition-colors">
                   New Arrivals

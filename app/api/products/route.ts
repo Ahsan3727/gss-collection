@@ -80,41 +80,49 @@ export async function POST(req: Request) {
     await connectDB();
     await ensureCategories();
 
-    const categoryExists = await Category.exists({ slug: parsed.data.cat });
-    if (!categoryExists) {
+      const categoryDoc = await Category.findOne({ slug: parsed.data.cat })
+        .select('targetType')
+        .lean();
+      if (!categoryDoc) {
+        return NextResponse.json(
+          { error: `Category "${parsed.data.cat}" does not exist. Create it in Categories first.` },
+          { status: 400 }
+        );
+      }
+      if (categoryDoc.targetType === 'page') {
+        return NextResponse.json(
+          { error: 'Cannot add products to a CMS Page category. Select a product collection category.' },
+          { status: 400 }
+        );
+      }
+
+      const existing = await Product.findOne({
+        $or: [{ handle: parsed.data.handle }, { id: parsed.data.handle }],
+      }).lean();
+      if (existing) {
+        return NextResponse.json({ error: 'A product with this handle already exists.' }, { status: 409 });
+      }
+
+      const document = buildProductDocument(parsed.data);
+      const newProduct = await Product.create(document);
+      await logAdminAction(authCheck.user.email, 'product_create', 'Product', newProduct.id, {
+        title: newProduct.title,
+        handle: newProduct.handle,
+      });
+
+      revalidateTag('products');
+      revalidateTag('categories');
+      revalidateTag(`product:${newProduct.handle}`);
+      revalidatePath('/');
+      revalidatePath(`/collections/${newProduct.cat}`);
+      revalidatePath('/sitemap.xml');
+
       return NextResponse.json(
-        { error: `Category "${parsed.data.cat}" does not exist. Create it in Categories first.` },
-        { status: 400 }
+        { success: true, product: JSON.parse(JSON.stringify(newProduct)) },
+        { status: 201 }
       );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error creating product';
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
-
-    const existing = await Product.findOne({
-      $or: [{ handle: parsed.data.handle }, { id: parsed.data.handle }],
-    }).lean();
-    if (existing) {
-      return NextResponse.json({ error: 'A product with this handle already exists.' }, { status: 409 });
-    }
-
-    const document = buildProductDocument(parsed.data);
-    const newProduct = await Product.create(document);
-    await logAdminAction(authCheck.user.email, 'product_create', 'Product', newProduct.id, {
-      title: newProduct.title,
-      handle: newProduct.handle,
-    });
-
-    revalidateTag('products');
-    revalidateTag('categories');
-    revalidateTag(`product:${newProduct.handle}`);
-    revalidatePath('/');
-    revalidatePath(`/collections/${newProduct.cat}`);
-    revalidatePath('/sitemap.xml');
-
-    return NextResponse.json(
-      { success: true, product: JSON.parse(JSON.stringify(newProduct)) },
-      { status: 201 }
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Error creating product';
-    return NextResponse.json({ error: msg }, { status: 400 });
   }
-}
