@@ -55,6 +55,10 @@ export async function loadSettings(): Promise<StoreSettingsData> {
   const serialized = JSON.parse(JSON.stringify(doc)) as Partial<StoreSettingsData>;
   const rawHero = serialized.hero;
   const rawSizes = serialized.ringSizes;
+  const cleanRow = (r: { size: string; note?: string }) => ({
+    size: String(r.size),
+    note: typeof r.note === 'string' ? r.note : '',
+  });
   return {
     ...DEFAULT_SETTINGS,
     ...serialized,
@@ -70,8 +74,8 @@ export async function loadSettings(): Promise<StoreSettingsData> {
       linkHref: rawHero?.linkHref?.trim() ? rawHero.linkHref : DEFAULT_HERO.linkHref,
     },
     ringSizes: {
-      ladies: rawSizes?.ladies?.length ? rawSizes.ladies : DEFAULT_RING_SIZES.ladies,
-      gents: rawSizes?.gents?.length ? rawSizes.gents : DEFAULT_RING_SIZES.gents,
+      ladies: rawSizes?.ladies?.length ? rawSizes.ladies.map(cleanRow) : DEFAULT_RING_SIZES.ladies,
+      gents: rawSizes?.gents?.length ? rawSizes.gents.map(cleanRow) : DEFAULT_RING_SIZES.gents,
       fitTip:
         typeof rawSizes?.fitTip === 'string' ? rawSizes.fitTip : DEFAULT_RING_SIZES.fitTip,
     },

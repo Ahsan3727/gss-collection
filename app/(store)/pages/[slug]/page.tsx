@@ -20,7 +20,7 @@ function RingSizeChart({ title, rows }: { title: string; rows: RingSizeEntry[] }
       <div className="bg-ground border-b border-line px-4 py-3">
         <h2 className="font-display text-xl font-normal text-ink">{title}</h2>
       </div>
-      <RingSizeTable rows={rows} ariaLabel={`${title} table`} />
+      <RingSizeTable rows={rows} ariaLabel={`${title} sizes`} className="p-4" />
     </section>
   );
 }
@@ -75,9 +75,8 @@ export default async function StaticContentPage({ params }: PageProps) {
       {pageImages.length > 0 && (
         <section aria-label="Visual guide photos" className="mt-8">
           <div
-            className={`grid gap-6 ${
-              pageImages.length === 1 ? 'grid-cols-1 max-w-xl mx-auto' : 'grid-cols-1 sm:grid-cols-2'
-            }`}
+            className={`grid gap-6 ${pageImages.length === 1 ? 'grid-cols-1 max-w-xl mx-auto' : 'grid-cols-1 sm:grid-cols-2'
+              }`}
           >
             {pageImages.map((img, idx) => (
               <figure key={`${img.url}-${idx}`} className="border border-line bg-mist p-3">

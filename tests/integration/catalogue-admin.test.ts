@@ -711,8 +711,8 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
         ringSizes: {
           ladies: DEFAULT_RING_SIZES.ladies,
           gents: [
-            { size: '10', diameterMm: 19.8, circumferenceMm: 62.2, note: '' },
-            { size: '10', diameterMm: 20.0, circumferenceMm: 62.8, note: '' },
+            { size: '10', note: '' },
+            { size: '10', note: 'Duplicate' },
           ],
           fitTip: 'Measure warm fingers.',
         },
@@ -724,12 +724,12 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
       jsonReq('http://localhost/api/admin/settings', 'PATCH', {
         ringSizes: {
           ladies: [
-            { size: '5', diameterMm: 15.7, circumferenceMm: 49.3, note: 'Petite' },
-            { size: '6', diameterMm: 16.5, circumferenceMm: 51.9, note: 'Most Popular' },
+            { size: '5', note: 'Petite' },
+            { size: '6', note: 'Most Popular' },
           ],
           gents: [
-            { size: '9', diameterMm: 19.0, circumferenceMm: 59.7, note: 'Standard' },
-            { size: '13', diameterMm: 22.2, circumferenceMm: 69.7, note: 'Broad Band' },
+            { size: '9', note: 'Standard' },
+            { size: '13', note: 'Broad Band' },
           ],
           fitTip: 'Choose half size up for broad Signet bands.',
         },

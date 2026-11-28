@@ -197,11 +197,6 @@ export const RingSizeEntrySchema = z.object({
     .min(1, 'Size label is required')
     .max(RING_SIZE_LIMITS.sizeMax, `Size label must be ${RING_SIZE_LIMITS.sizeMax} characters or fewer`)
     .regex(/^[a-zA-Z0-9.+-]+$/, 'Size label may only contain letters, numbers, dots, + or -'),
-  diameterMm: z.number().min(5, 'Diameter must be at least 5 mm').max(40, 'Diameter must be 40 mm or less'),
-  circumferenceMm: z
-    .number()
-    .min(15, 'Circumference must be at least 15 mm')
-    .max(120, 'Circumference must be 120 mm or less'),
   note: z.string().trim().max(RING_SIZE_LIMITS.noteMax).optional(),
 });
 
@@ -235,19 +230,19 @@ export type RingSizesConfig = z.infer<typeof RingSizesConfigSchema>;
 
 export const DEFAULT_RING_SIZES: RingSizesConfig = {
   ladies: [
-    { size: '5', diameterMm: 15.7, circumferenceMm: 49.3, note: '' },
-    { size: '6', diameterMm: 16.5, circumferenceMm: 51.8, note: '' },
-    { size: '7', diameterMm: 17.3, circumferenceMm: 54.4, note: '' },
-    { size: '8', diameterMm: 18.1, circumferenceMm: 56.9, note: '' },
-    { size: '9', diameterMm: 18.9, circumferenceMm: 59.5, note: '' },
+    { size: '5', note: '' },
+    { size: '6', note: '' },
+    { size: '7', note: '' },
+    { size: '8', note: '' },
+    { size: '9', note: '' },
   ],
   gents: [
-    { size: '7', diameterMm: 17.3, circumferenceMm: 54.4, note: '' },
-    { size: '8', diameterMm: 18.1, circumferenceMm: 56.9, note: '' },
-    { size: '9', diameterMm: 18.9, circumferenceMm: 59.5, note: '' },
-    { size: '10', diameterMm: 19.8, circumferenceMm: 62.1, note: '' },
-    { size: '11', diameterMm: 20.6, circumferenceMm: 64.6, note: '' },
-    { size: '12', diameterMm: 21.4, circumferenceMm: 67.2, note: '' },
+    { size: '7', note: '' },
+    { size: '8', note: '' },
+    { size: '9', note: '' },
+    { size: '10', note: '' },
+    { size: '11', note: '' },
+    { size: '12', note: '' },
   ],
   fitTip: 'If you fall between sizes, we recommend selecting the larger size for wider bands.',
 };

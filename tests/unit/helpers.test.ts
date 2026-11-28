@@ -282,8 +282,8 @@ describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => 
     const dupLadies = RingSizesConfigSchema.safeParse({
       ...DEFAULT_RING_SIZES,
       ladies: [
-        { size: '7', diameterMm: 17.3, circumferenceMm: 54.4 },
-        { size: '7', diameterMm: 17.4, circumferenceMm: 54.7 },
+        { size: '7', note: '' },
+        { size: '7', note: 'Duplicate' },
       ],
     });
     expect(dupLadies.success).toBe(false);

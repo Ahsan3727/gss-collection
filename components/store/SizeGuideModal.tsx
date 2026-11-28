@@ -70,11 +70,10 @@ export default function SizeGuideModal({
                   role="tab"
                   aria-selected={selected}
                   onClick={() => setAudience(tab)}
-                  className={`min-h-[44px] text-xs uppercase tracking-wider font-semibold border transition ${
-                    selected
-                      ? 'bg-ink text-white border-ink'
-                      : 'bg-ground text-ink-2 border-line hover:text-ink'
-                  }`}
+                  className={`min-h-[44px] text-xs uppercase tracking-wider font-semibold border transition ${selected
+                    ? 'bg-ink text-white border-ink'
+                    : 'bg-ground text-ink-2 border-line hover:text-ink'
+                    }`}
                 >
                   {tab === 'ladies' ? 'Ladies Rings' : 'Gents Rings'}
                 </button>
@@ -84,9 +83,8 @@ export default function SizeGuideModal({
 
           <RingSizeTable
             rows={rows}
-            compact
-            className="mb-4 border border-line"
-            ariaLabel={audience === 'gents' ? 'Gents rings sizing table' : 'Ladies rings sizing table'}
+            className="p-3.5 mb-4 border border-line bg-white"
+            ariaLabel={audience === 'gents' ? 'Gents rings sizes' : 'Ladies rings sizes'}
           />
 
           {guideImages.length > 0 && (

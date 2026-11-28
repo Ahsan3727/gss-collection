@@ -86,14 +86,10 @@ function normalizeRingSizes(config?: RingSizesConfig): RingSizesConfig {
   return {
     ladies: (source.ladies?.length ? source.ladies : DEFAULT_RING_SIZES.ladies).map((row) => ({
       size: row.size,
-      diameterMm: row.diameterMm,
-      circumferenceMm: row.circumferenceMm,
       note: row.note || '',
     })),
     gents: (source.gents?.length ? source.gents : DEFAULT_RING_SIZES.gents).map((row) => ({
       size: row.size,
-      diameterMm: row.diameterMm,
-      circumferenceMm: row.circumferenceMm,
       note: row.note || '',
     })),
     fitTip: typeof source.fitTip === 'string' ? source.fitTip : DEFAULT_RING_SIZES.fitTip,
@@ -118,7 +114,7 @@ function RingSizeTableEditor({
 
   const addRow = () => {
     if (rows.length >= RING_SIZE_LIMITS.maxEntriesPerChart) return;
-    onChange([...rows, { size: '', diameterMm: 17.3, circumferenceMm: 54.4, note: '' }]);
+    onChange([...rows, { size: '', note: '' }]);
   };
 
   const removeRow = (index: number) => {
@@ -144,184 +140,138 @@ function RingSizeTableEditor({
         {rows.map((row, idx) => (
           <div
             key={`${groupKey}-${idx}`}
-            className="grid grid-cols-2 sm:grid-cols-12 gap-2 bg-white border border-line p-2.5 items-end"
+            className="grid grid-cols-12 gap-2 bg-white border border-line p-2.5 items-end"
           >
-            <div className="sm:col-span-2 min-w-0">
-              <label
-                htmlFor={`sz-${groupKey}-label-${idx}`}
-                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
-              >
-                Size *
-              </label>
-              <input
-                id={`sz-${groupKey}-label-${idx}`}
-                type="text"
-                maxLength={RING_SIZE_LIMITS.sizeMax}
-                value={row.size}
-                onChange={(e) => updateRow(idx, { size: e.target.value })}
-                placeholder="e.g. 7"
-                className={inputClass}
-              />
-            </div>
+              <div className="col-span-4 min-w-0">
+                <label
+                  htmlFor={`sz-${groupKey}-label-${idx}`}
+                  className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+                >
+                  Size *
+                </label>
+                <input
+                  id={`sz-${groupKey}-label-${idx}`}
+                  type="text"
+                  maxLength={RING_SIZE_LIMITS.sizeMax}
+                  value={row.size}
+                  onChange={(e) => updateRow(idx, { size: e.target.value })}
+                  placeholder="e.g. 7"
+                  className={inputClass}
+                />
+              </div>
 
-            <div className="sm:col-span-3 min-w-0">
-              <label
-                htmlFor={`sz-${groupKey}-diam-${idx}`}
-                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
-              >
-                Diameter (mm)
-              </label>
-              <input
-                id={`sz-${groupKey}-diam-${idx}`}
-                type="number"
-                step="0.1"
-                min="5"
-                max="40"
-                value={row.diameterMm}
-                onChange={(e) => {
-                  const diameter = Number(e.target.value);
-                  updateRow(idx, {
-                    diameterMm: diameter,
-                    ...(Number.isFinite(diameter) && diameter > 0
-                      ? { circumferenceMm: Number((diameter * Math.PI).toFixed(1)) }
-                      : {}),
-                  });
-                }}
-                className={inputClass}
-              />
-            </div>
+                <div className="col-span-6 sm:col-span-7 min-w-0">
+                  <label
+                    htmlFor={`sz-${groupKey}-note-${idx}`}
+                    className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+                  >
+                    Note
+                  </label>
+                  <input
+                    id={`sz-${groupKey}-note-${idx}`}
+                    type="text"
+                    maxLength={RING_SIZE_LIMITS.noteMax}
+                    value={row.note || ''}
+                    onChange={(e) => updateRow(idx, { note: e.target.value })}
+                    placeholder="Optional"
+                    className={inputClass}
+                  />
+                </div>
 
-            <div className="sm:col-span-3 min-w-0">
-              <label
-                htmlFor={`sz-${groupKey}-circ-${idx}`}
-                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
-              >
-                Circumf. (mm)
-              </label>
-              <input
-                id={`sz-${groupKey}-circ-${idx}`}
-                type="number"
-                step="0.1"
-                min="15"
-                max="120"
-                value={row.circumferenceMm}
-                onChange={(e) => updateRow(idx, { circumferenceMm: Number(e.target.value) })}
-                className={inputClass}
-              />
-            </div>
-
-            <div className="col-span-2 sm:col-span-3 min-w-0">
-              <label
-                htmlFor={`sz-${groupKey}-note-${idx}`}
-                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
-              >
-                Note
-              </label>
-              <input
-                id={`sz-${groupKey}-note-${idx}`}
-                type="text"
-                maxLength={RING_SIZE_LIMITS.noteMax}
-                value={row.note || ''}
-                onChange={(e) => updateRow(idx, { note: e.target.value })}
-                placeholder="Optional"
-                className={inputClass}
-              />
-            </div>
-
-            <div className="col-span-2 sm:col-span-1 flex justify-end">
-              <button
-                type="button"
-                onClick={() => removeRow(idx)}
-                disabled={rows.length <= 1}
-                aria-label={`Remove size row ${idx + 1}`}
-                className="min-w-[44px] min-h-[44px] border border-line text-red-700 hover:border-red-700 disabled:opacity-30 font-semibold"
-              >
-                ✕
-              </button>
+                <div className="col-span-2 sm:col-span-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => removeRow(idx)}
+                    disabled={rows.length <= 1}
+                    aria-label={`Remove size row ${idx + 1}`}
+                    className="min-w-[44px] min-h-[44px] border border-line text-red-700 hover:border-red-700 disabled:opacity-30 font-semibold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+        ))}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
+        );
 }
 
-function sortPages(pages: PageRecord[]) {
+        function sortPages(pages: PageRecord[]) {
   return [...pages].sort((a, b) => a.title.localeCompare(b.title));
 }
 
-// A fixed time zone keeps the server render and the browser render identical.
-function formatDate(value?: string) {
+        // A fixed time zone keeps the server render and the browser render identical.
+        function formatDate(value?: string) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'Asia/Karachi',
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('en-GB', {
+          day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Karachi',
   });
 }
 
-type Mode = 'none' | 'new' | 'edit';
+        type Mode = 'none' | 'new' | 'edit';
 
-/** Own-property lookup, so a slug such as "constructor" is never mistaken for a footer page. */
-function footerLabelFor(slug: string) {
+        /** Own-property lookup, so a slug such as "constructor" is never mistaken for a footer page. */
+        function footerLabelFor(slug: string) {
   return Object.prototype.hasOwnProperty.call(FOOTER_LINKS, slug) ? FOOTER_LINKS[slug] : undefined;
 }
 
-export default function PagesClient({
-  initialPages,
-  initialRingSizes = DEFAULT_RING_SIZES,
+        export default function PagesClient({
+          initialPages,
+          initialRingSizes = DEFAULT_RING_SIZES,
 }: {
-  initialPages: PageRecord[];
-  initialRingSizes?: RingSizesConfig;
+          initialPages: PageRecord[];
+        initialRingSizes?: RingSizesConfig;
 }) {
   const [pages, setPages] = useState<PageRecord[]>(() => sortPages(initialPages));
-  // mode says what the editor shows; activeSlug is the saved slug of the page being edited (mode 'edit' only).
-  const [mode, setMode] = useState<'none' | 'new' | 'edit'>('none');
-  const [activeSlug, setActiveSlug] = useState('');
-  const [values, setValues] = useState<FormValues>(BLANK);
-  const [saved, setSaved] = useState<FormValues>(BLANK);
-  const [ringSizes, setRingSizes] = useState<RingSizesConfig>(() =>
-    normalizeRingSizes(initialRingSizes)
-  );
-  const [savedRingSizes, setSavedRingSizes] = useState<RingSizesConfig>(() =>
-    normalizeRingSizes(initialRingSizes)
-  );
-  const [slugTouched, setSlugTouched] = useState(false);
-  const [slugLocked, setSlugLocked] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const editorRef = useRef<HTMLDivElement>(null);
-  const scrollPending = useRef(false);
+        // mode says what the editor shows; activeSlug is the saved slug of the page being edited (mode 'edit' only).
+        const [mode, setMode] = useState<'none' | 'new' | 'edit'>('none');
+        const [activeSlug, setActiveSlug] = useState('');
+        const [values, setValues] = useState<FormValues>(BLANK);
+          const [saved, setSaved] = useState<FormValues>(BLANK);
+            const [ringSizes, setRingSizes] = useState<RingSizesConfig>(() =>
+              normalizeRingSizes(initialRingSizes)
+              );
+              const [savedRingSizes, setSavedRingSizes] = useState<RingSizesConfig>(() =>
+                normalizeRingSizes(initialRingSizes)
+                );
+                const [slugTouched, setSlugTouched] = useState(false);
+                const [slugLocked, setSlugLocked] = useState(false);
+                const [saving, setSaving] = useState(false);
+                const [uploadingPhotos, setUploadingPhotos] = useState(false);
+                const [error, setError] = useState('');
+                const [message, setMessage] = useState('');
+                const editorRef = useRef<HTMLDivElement>(null);
+                  const scrollPending = useRef(false);
 
-  const isNew = mode === 'new';
-  const isEdit = mode === 'edit';
-  const effectiveSlug = slugify(values.slug || values.title);
-  const isSizeGuideEditor = activeSlug === 'size-guide' || effectiveSlug === 'size-guide';
-  const sizesDirty =
-    isSizeGuideEditor && JSON.stringify(ringSizes) !== JSON.stringify(savedRingSizes);
+                  const isNew = mode === 'new';
+                  const isEdit = mode === 'edit';
+                  const effectiveSlug = slugify(values.slug || values.title);
+                  const isSizeGuideEditor = activeSlug === 'size-guide' || effectiveSlug === 'size-guide';
+                  const sizesDirty =
+                  isSizeGuideEditor && JSON.stringify(ringSizes) !== JSON.stringify(savedRingSizes);
 
-  const dirty =
-    mode !== 'none' &&
-    (values.slug !== saved.slug ||
-      values.title !== saved.title ||
-      values.body !== saved.body ||
-      values.metaDesc !== saved.metaDesc ||
-      JSON.stringify(values.images) !== JSON.stringify(saved.images) ||
-      sizesDirty);
+                  const dirty =
+                  mode !== 'none' &&
+                  (values.slug !== saved.slug ||
+                  values.title !== saved.title ||
+                  values.body !== saved.body ||
+                  values.metaDesc !== saved.metaDesc ||
+                  JSON.stringify(values.images) !== JSON.stringify(saved.images) ||
+                  sizesDirty);
 
   // Browser prompt if the tab is closed or reloaded with edits that were not saved.
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
+                    e.preventDefault();
+                  e.returnValue = '';
     };
-    window.addEventListener('beforeunload', warn);
+                  window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
@@ -329,45 +279,45 @@ export default function PagesClient({
   // the render would stop short, because the page is still as tall as the list.
   useEffect(() => {
     if (!scrollPending.current) return;
-    scrollPending.current = false;
-    if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({ block: 'start' });
+                  scrollPending.current = false;
+                  if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({block: 'start' });
   }, [mode, activeSlug]);
 
-  /* ---------- open / close ---------- */
+                  /* ---------- open / close ---------- */
 
-  const [pendingConfirm, setPendingConfirm] = useState<{
+                  const [pendingConfirm, setPendingConfirm] = useState<{
     title: string;
-    description: string;
-    confirmLabel: string;
-    destructive: boolean;
+                  description: string;
+                  confirmLabel: string;
+                  destructive: boolean;
     onConfirm: () => void;
   } | null>(null);
 
   const runIfClean = (action: () => void) => {
     if (!dirty) {
-      action();
-      return;
+                    action();
+                  return;
     }
-    setPendingConfirm({
-      title: 'Leave without saving?',
-      description: 'You have unsaved changes on this page. Leaving will discard them.',
-      confirmLabel: 'Leave page',
-      destructive: true,
-      onConfirm: action,
+                  setPendingConfirm({
+                    title: 'Leave without saving?',
+                  description: 'You have unsaved changes on this page. Leaving will discard them.',
+                  confirmLabel: 'Leave page',
+                  destructive: true,
+                  onConfirm: action,
     });
   };
 
   const applyOpen = (page: PageRecord) => {
     const next = toValues(page);
-    setMode('edit');
-    setActiveSlug(page.slug);
-    setValues(next);
-    setSaved(next);
-    setSlugTouched(true);
-    setSlugLocked(true);
-    setError('');
-    setMessage('');
-    scrollPending.current = true;
+                  setMode('edit');
+                  setActiveSlug(page.slug);
+                  setValues(next);
+                  setSaved(next);
+                  setSlugTouched(true);
+                  setSlugLocked(true);
+                  setError('');
+                  setMessage('');
+                  scrollPending.current = true;
   };
 
   const open = (page: PageRecord) => {
@@ -376,50 +326,50 @@ export default function PagesClient({
   };
 
   const applyOpenNew = () => {
-    setMode('new');
-    setActiveSlug('');
-    setValues(BLANK);
-    setSaved(BLANK);
-    setSlugTouched(false);
-    setSlugLocked(false);
-    setError('');
-    setMessage('');
-    scrollPending.current = true;
+                    setMode('new');
+                  setActiveSlug('');
+                  setValues(BLANK);
+                  setSaved(BLANK);
+                  setSlugTouched(false);
+                  setSlugLocked(false);
+                  setError('');
+                  setMessage('');
+                  scrollPending.current = true;
   };
 
   const openNew = () => {
     if (isNew && !dirty) {
-      if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({ block: 'start' });
-      return;
+      if (window.innerWidth < 1024) editorRef.current?.scrollIntoView({block: 'start' });
+                  return;
     }
-    runIfClean(applyOpenNew);
+                  runIfClean(applyOpenNew);
   };
 
   const closeEditor = () => {
-    runIfClean(() => {
-      setMode('none');
-      setActiveSlug('');
-      setValues(BLANK);
-      setSaved(BLANK);
-      setError('');
-      setMessage('');
-    });
+                    runIfClean(() => {
+                      setMode('none');
+                      setActiveSlug('');
+                      setValues(BLANK);
+                      setSaved(BLANK);
+                      setError('');
+                      setMessage('');
+                    });
   };
 
   const discard = () => {
     if (!dirty) return;
-    setPendingConfirm({
-      title: 'Discard changes?',
-      description: 'Revert this page back to the last saved version.',
-      confirmLabel: 'Discard',
-      destructive: true,
+                  setPendingConfirm({
+                    title: 'Discard changes?',
+                  description: 'Revert this page back to the last saved version.',
+                  confirmLabel: 'Discard',
+                  destructive: true,
       onConfirm: () => {
-        setValues(saved);
-        setRingSizes(savedRingSizes);
-        setSlugTouched(isEdit);
-        setSlugLocked(isEdit);
-        setError('');
-        setMessage('');
+                    setValues(saved);
+                  setRingSizes(savedRingSizes);
+                  setSlugTouched(isEdit);
+                  setSlugLocked(isEdit);
+                  setError('');
+                  setMessage('');
       },
     });
   };
@@ -427,619 +377,614 @@ export default function PagesClient({
   /* ---------- field & image handlers ---------- */
 
   const changeTitle = (title: string) => {
-    setValues((v) => ({ ...v, title, slug: slugTouched ? v.slug : slugify(title) }));
+                    setValues((v) => ({ ...v, title, slug: slugTouched ? v.slug : slugify(title) }));
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+                  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    if (!files.length) return;
+                    e.target.value = '';
+                    if (!files.length) return;
 
-    setError('');
-    setMessage('');
-    setUploadingPhotos(true);
-    const problems: string[] = [];
-    const added: PageImage[] = [];
+                    setError('');
+                    setMessage('');
+                    setUploadingPhotos(true);
+                    const problems: string[] = [];
+                    const added: PageImage[] = [];
 
-    for (const file of files) {
+                    for (const file of files) {
       if (values.images.length + added.length >= MAX_PAGE_IMAGES) {
-        problems.push(`Maximum ${MAX_PAGE_IMAGES} images per page.`);
-        break;
+                      problems.push(`Maximum ${MAX_PAGE_IMAGES} images per page.`);
+                    break;
       }
-      try {
+                    try {
         const uploaded = await uploadAdminImage(file, 'pages');
-        added.push({ url: uploaded.url, caption: '' });
+                    added.push({url: uploaded.url, caption: '' });
       } catch (err: unknown) {
-        problems.push(`${file.name}: ${err instanceof Error ? err.message : 'Upload failed.'}`);
+                      problems.push(`${file.name}: ${err instanceof Error ? err.message : 'Upload failed.'}`);
       }
     }
 
     if (added.length > 0) {
-      setValues((v) => ({ ...v, images: [...v.images, ...added] }));
+                      setValues((v) => ({ ...v, images: [...v.images, ...added] }));
     }
     if (problems.length > 0) setError(problems.join(' '));
-    setUploadingPhotos(false);
+                    setUploadingPhotos(false);
   };
 
   const moveImage = (index: number, delta: -1 | 1) => {
-    setValues((v) => {
-      const target = index + delta;
-      if (target < 0 || target >= v.images.length) return v;
-      const next = [...v.images];
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...v, images: next };
-    });
+                      setValues((v) => {
+                        const target = index + delta;
+                        if (target < 0 || target >= v.images.length) return v;
+                        const next = [...v.images];
+                        [next[index], next[target]] = [next[target], next[index]];
+                        return { ...v, images: next };
+                      });
   };
 
   const removeImage = (index: number) => {
-    setValues((v) => ({ ...v, images: v.images.filter((_, i) => i !== index) }));
+                      setValues((v) => ({ ...v, images: v.images.filter((_, i) => i !== index) }));
   };
 
-  /* ---------- save ---------- */
+                    /* ---------- save ---------- */
 
-  const slugChanged = isEdit && effectiveSlug !== activeSlug;
-  const footerLabel = isEdit ? footerLabelFor(activeSlug) : undefined;
+                    const slugChanged = isEdit && effectiveSlug !== activeSlug;
+                    const footerLabel = isEdit ? footerLabelFor(activeSlug) : undefined;
 
   const validate = (): string => {
     if (!values.title.trim()) return 'Title is required.';
-    if (!effectiveSlug) return 'Slug is required.';
-    if (!normalizeBody(values.body)) return 'Body is required.';
+                    if (!effectiveSlug) return 'Slug is required.';
+                    if (!normalizeBody(values.body)) return 'Body is required.';
     if (values.title.trim().length > TITLE_MAX) return `Title must be ${TITLE_MAX} characters or fewer.`;
     if (normalizeBody(values.body).length > BODY_MAX) return 'Body must be 20,000 characters or fewer.';
-    if (isSizeGuideEditor) {
+                    if (isSizeGuideEditor) {
       for (const [label, rows] of [
-        ['Ladies Rings', ringSizes.ladies],
-        ['Gents Rings', ringSizes.gents],
-      ] as const) {
+                    ['Ladies Rings', ringSizes.ladies],
+                    ['Gents Rings', ringSizes.gents],
+                    ] as const) {
         if (rows.length === 0) return `Add at least one ring size row for ${label}.`;
-        const seen = new Set<string>();
-        for (const r of rows) {
+                    const seen = new Set<string>();
+                      for (const r of rows) {
           const cleanSize = r.size.trim();
-          if (!cleanSize) return `Every row in ${label} must have a size label.`;
-          if (seen.has(cleanSize.toLowerCase())) {
+                      if (!cleanSize) return `Every row in ${label} must have a size label.`;
+                      if (seen.has(cleanSize.toLowerCase())) {
             return `Duplicate size "${cleanSize}" inside ${label}.`;
           }
-          seen.add(cleanSize.toLowerCase());
+                      seen.add(cleanSize.toLowerCase());
         }
       }
     }
-    return '';
+                      return '';
   };
 
   const submitPageSave = async () => {
     const payload = {
-      slug: effectiveSlug,
-      title: values.title.trim(),
-      body: normalizeBody(values.body),
-      metaDesc: values.metaDesc.trim(),
+                        slug: effectiveSlug,
+                      title: values.title.trim(),
+                      body: normalizeBody(values.body),
+                      metaDesc: values.metaDesc.trim(),
       images: values.images.map((img) => ({
-        url: img.url.trim(),
-        caption: (img.caption || '').trim(),
+                        url: img.url.trim(),
+                      caption: (img.caption || '').trim(),
       })),
     };
 
-    setSaving(true);
-    try {
+                      setSaving(true);
+                      try {
       const url = isNew ? '/api/admin/pages' : `/api/admin/pages/${encodeURIComponent(activeSlug)}`;
-      const res = await fetch(url, {
-        method: isNew ? 'POST' : 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+                      const res = await fetch(url, {
+                        method: isNew ? 'POST' : 'PATCH',
+                      headers: {'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'The page could not be saved.');
+      const data = await res.json().catch(() => ({ }));
+                      if (!res.ok) throw new Error(data.error || 'The page could not be saved.');
 
-      if (isSizeGuideEditor && sizesDirty) {
+                      if (isSizeGuideEditor && sizesDirty) {
         const cleanedSizes: RingSizesConfig = {
-          ladies: ringSizes.ladies.map((r) => ({
-            size: r.size.trim(),
-            diameterMm: Number(r.diameterMm),
-            circumferenceMm: Number(r.circumferenceMm),
-            note: (r.note || '').trim(),
+                        ladies: ringSizes.ladies.map((r) => ({
+                        size: r.size.trim(),
+                      note: (r.note || '').trim(),
           })),
           gents: ringSizes.gents.map((r) => ({
-            size: r.size.trim(),
-            diameterMm: Number(r.diameterMm),
-            circumferenceMm: Number(r.circumferenceMm),
-            note: (r.note || '').trim(),
+                        size: r.size.trim(),
+                      note: (r.note || '').trim(),
           })),
-          fitTip: ringSizes.fitTip.trim(),
+                      fitTip: ringSizes.fitTip.trim(),
         };
 
-        const settingsRes = await fetch('/api/admin/settings', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ringSizes: cleanedSizes }),
+                      const settingsRes = await fetch('/api/admin/settings', {
+                        method: 'PATCH',
+                      headers: {'Content-Type': 'application/json' },
+                      body: JSON.stringify({ringSizes: cleanedSizes }),
         });
-        const settingsData = await settingsRes.json().catch(() => ({}));
-        if (!settingsRes.ok) {
+        const settingsData = await settingsRes.json().catch(() => ({ }));
+                      if (!settingsRes.ok) {
           throw new Error(settingsData.error || 'Page saved, but ring sizes failed to save.');
         }
-        const persistedSizes = normalizeRingSizes(settingsData.settings?.ringSizes || cleanedSizes);
-        setRingSizes(persistedSizes);
-        setSavedRingSizes(persistedSizes);
+                      const persistedSizes = normalizeRingSizes(settingsData.settings?.ringSizes || cleanedSizes);
+                      setRingSizes(persistedSizes);
+                      setSavedRingSizes(persistedSizes);
       }
 
-      const record: PageRecord = { ...payload, ...(data.page || {}) };
+                      const record: PageRecord = {...payload, ...(data.page || { }) };
       setPages((current) =>
-        sortPages(
-          isNew
+                      sortPages(
+                      isNew
             ? [...current.filter((p) => p.slug !== record.slug), record]
             : current.map((p) => (p.slug === activeSlug ? record : p))
-        )
-      );
+                      )
+                      );
 
-      const next = toValues(record);
-      setMode('edit');
-      setActiveSlug(record.slug);
-      setValues(next);
-      setSaved(next);
-      setSlugTouched(true);
-      setSlugLocked(true);
-      setMessage(isNew ? 'Page created.' : 'Changes saved.');
+                      const next = toValues(record);
+                      setMode('edit');
+                      setActiveSlug(record.slug);
+                      setValues(next);
+                      setSaved(next);
+                      setSlugTouched(true);
+                      setSlugLocked(true);
+                      setMessage(isNew ? 'Page created.' : 'Changes saved.');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'The page could not be saved.');
+                        setError(err instanceof Error ? err.message : 'The page could not be saved.');
     } finally {
-      setSaving(false);
+                        setSaving(false);
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saving || mode === 'none') return;
+                        e.preventDefault();
+                      if (saving || mode === 'none') return;
 
-    setError('');
-    setMessage('');
+                      setError('');
+                      setMessage('');
 
-    const problem = validate();
-    if (problem) {
-      setError(problem);
-      return;
+                      const problem = validate();
+                      if (problem) {
+                        setError(problem);
+                      return;
     }
 
-    if (slugChanged && footerLabel) {
-      setPendingConfirm({
-        title: 'Update footer-linked URL?',
-        description:
-          `The shop footer links to /pages/${activeSlug} ("${footerLabel}"). ` +
-          `If you save the new address, that footer link will show "not found". Save anyway?`,
-        confirmLabel: 'Save anyway',
-        destructive: true,
-        onConfirm: () => {
-          void submitPageSave();
-        },
-      });
-      return;
+                      if (slugChanged && footerLabel) {
+                        setPendingConfirm({
+                          title: 'Update footer-linked URL?',
+                          description:
+                            `The shop footer links to /pages/${activeSlug} ("${footerLabel}"). ` +
+                            `If you save the new address, that footer link will show "not found". Save anyway?`,
+                          confirmLabel: 'Save anyway',
+                          destructive: true,
+                          onConfirm: () => {
+                            void submitPageSave();
+                          },
+                        });
+                      return;
     }
 
-    await submitPageSave();
+                      await submitPageSave();
   };
 
-  /* ---------- derived text ---------- */
+                      /* ---------- derived text ---------- */
 
-  const body = normalizeBody(values.body);
-  const paragraphs = body ? body.split('\n\n') : [];
+                      const body = normalizeBody(values.body);
+                      const paragraphs = body ? body.split('\n\n') : [];
   const hasSingleBreaks = paragraphs.some((p) => p.includes('\n'));
   const bodyOver = body.length > BODY_MAX;
   const titleOver = values.title.trim().length > TITLE_MAX;
-  const metaLength = values.metaDesc.trim().length;
+                      const metaLength = values.metaDesc.trim().length;
 
-  /* ---------- render ---------- */
+                      /* ---------- render ---------- */
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      {/* ===== List ===== */}
-      <aside className={`lg:col-span-4 ${cardClass}`} aria-label="Content pages">
-        <div className="flex items-center justify-between gap-3 p-4 border-b border-line">
-          <h2 className={cardTitleClass}>All pages ({pages.length})</h2>
-          <button
-            type="button"
-            onClick={openNew}
-            className="bg-ink text-white px-4 min-h-[44px] text-xs uppercase tracking-wider font-semibold hover:bg-neutral-800 transition whitespace-nowrap"
-          >
-            Add page
-          </button>
-        </div>
-
-        {pages.length === 0 ? (
-          <p className="p-6 text-xs text-ink-2">No pages yet. Use Add page to write the first one.</p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {pages.map((page) => {
-              const active = isEdit && activeSlug === page.slug;
-              return (
-                <li
-                  key={page.slug}
-                  className={`flex items-stretch ${active ? 'bg-ground border-l-2 border-ink' : 'border-l-2 border-transparent'}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => open(page)}
-                    aria-current={active ? 'true' : undefined}
-                    className="flex-1 min-w-0 min-h-[44px] text-left px-4 py-3.5 hover:bg-neutral-50 transition"
-                  >
-                    <span className="block text-sm font-medium text-ink truncate">{page.title}</span>
-                    <span className="block text-xs font-mono text-ink-2 truncate">/pages/{page.slug}</span>
-                    <span className="block text-xs text-ink-2 mt-0.5">
-                      {footerLabelFor(page.slug) ? 'Linked in footer' : 'Not in footer'}
-                      {page.updatedAt ? ` · Updated ${formatDate(page.updatedAt)}` : ''}
-                    </span>
-                  </button>
-                  <a
-                    href={`/pages/${page.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 min-w-[44px] flex items-center justify-center text-xs uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline whitespace-nowrap"
-                    aria-label={`View ${page.title} on the shop`}
-                  >
-                    View
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </aside>
-
-      {/* ===== Editor ===== */}
-      <div ref={editorRef} className="lg:col-span-8 scroll-mt-28">
-        {mode === 'none' ? (
-          <div className={`${cardClass} p-8`}>
-            <h2 className={`${cardTitleClass} mb-2`}>Edit a page</h2>
-            <p className="text-xs text-ink-2 leading-relaxed max-w-md">
-              Choose a page from the list to change its text, or add a new page. Saved changes show on the shop
-              straight away.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSave} noValidate className={`${cardClass} p-6 text-xs`}>
-            <div className="flex flex-wrap items-baseline justify-between gap-3 pb-2 mb-4 border-b border-line">
-              <h2 className={cardTitleClass}>
-                {isNew ? 'New page' : 'Edit page'}
-                {dirty && <span className="ml-3 text-xs font-sans font-semibold text-amber-800">Unsaved changes</span>}
-              </h2>
-              {isEdit && (
-                <a
-                  href={`/pages/${activeSlug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline min-h-[44px] inline-flex items-center"
-                >
-                  View live page ↗
-                </a>
-              )}
-            </div>
-
-            {error && (
-              <p role="alert" className="mb-5 text-xs text-red-700 bg-red-50 p-3 border border-red-200">
-                {error}
-              </p>
-            )}
-            {message && (
-              <p
-                role="status"
-                className="mb-5 text-xs font-semibold text-emerald-800 bg-emerald-50 p-3 border border-emerald-200"
-              >
-                {message}
-              </p>
-            )}
-
-            <div className="space-y-5">
-              {/* Title */}
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <label htmlFor="pg-title" className={labelClass}>
-                    Title *
-                  </label>
-                  <span className={`text-xs ${titleOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
-                    {values.title.length} / {TITLE_MAX}
-                  </span>
-                </div>
-                <input
-                  id="pg-title"
-                  type="text"
-                  value={values.title}
-                  onChange={(e) => changeTitle(e.target.value)}
-                  placeholder="e.g. Shipping & Returns Policy"
-                  className={inputClass}
-                />
-                <p className="text-xs text-ink-2 mt-1">Shown as the heading at the top of the page.</p>
-              </div>
-
-              {/* Slug */}
-              <div>
-                <label htmlFor="pg-slug" className={labelClass}>
-                  Slug (web address)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="pg-slug"
-                    type="text"
-                    value={values.slug}
-                    readOnly={slugLocked}
-                    onChange={(e) => {
-                      setSlugTouched(true);
-                      setValues((v) => ({ ...v, slug: e.target.value }));
-                    }}
-                    onBlur={() => setValues((v) => ({ ...v, slug: slugify(v.slug) }))}
-                    placeholder="created from the title"
-                    className={`${inputClass} font-mono ${slugLocked ? 'bg-ground text-ink-2' : ''}`}
-                  />
-                  {slugLocked && (
-                    <button
-                      type="button"
-                      onClick={() => setSlugLocked(false)}
-                      className="px-3 min-h-[44px] border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold whitespace-nowrap"
-                    >
-                      Change
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-ink-2 mt-1">
-                  Page address: /pages/{effectiveSlug || '...'}
-                </p>
-                {isEdit && !slugLocked && (
-                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
-                    {footerLabel ? (
-                      <>
-                        The shop footer links to /pages/{activeSlug} (&ldquo;{footerLabel}&rdquo;). If you change the
-                        slug, that footer link shows &ldquo;not found&rdquo; until a developer updates it. There is
-                        no automatic redirect.
-                      </>
-                    ) : (
-                      <>
-                        Changing the slug changes the page address. Any link or bookmark that uses the old address
-                        stops working. There is no automatic redirect.
-                      </>
-                    )}
-                  </p>
-                )}
-              </div>
-
-              {/* Body */}
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <label htmlFor="pg-body" className={labelClass}>
-                    Body *
-                  </label>
-                  <span className={`text-xs ${bodyOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
-                    {body.length.toLocaleString('en-US')} / {BODY_MAX.toLocaleString('en-US')}
-                  </span>
-                </div>
-                <textarea
-                  id="pg-body"
-                  value={values.body}
-                  onChange={(e) => setValues((v) => ({ ...v, body: e.target.value }))}
-                  rows={16}
-                  className={`${inputClass} leading-relaxed resize-y`}
-                />
-                <p className="text-xs text-ink-2 mt-1">
-                  Plain text only. Leave an empty line between paragraphs. A single line break is not kept, so the
-                  lines on either side of it join into one paragraph.
-                  {paragraphs.length > 0 && ` This page will show ${paragraphs.length} paragraph${paragraphs.length === 1 ? '' : 's'}.`}
-                </p>
-                {hasSingleBreaks && (
-                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
-                    Some lines are separated by a single line break. On the shop they will run together as one
-                    paragraph. Add an empty line between them to keep them apart.
-                  </p>
-                )}
-              </div>
-
-              {/* Meta description */}
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <label htmlFor="pg-meta" className={labelClass}>
-                    Meta description
-                  </label>
-                  <span className="text-xs text-ink-2">
-                    {metaLength} / about {META_SOFT_MAX}
-                  </span>
-                </div>
-                <textarea
-                  id="pg-meta"
-                  value={values.metaDesc}
-                  onChange={(e) => setValues((v) => ({ ...v, metaDesc: e.target.value }))}
-                  rows={2}
-                  className={`${inputClass} resize-y`}
-                />
-                <p className="text-xs text-ink-2 mt-1">
-                  Optional. The short summary search engines show under the page title. If empty, a standard
-                  sentence is used.
-                </p>
-              </div>
-
-              {/* Page Images */}
-              <div className="border-t border-line pt-5 space-y-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="block uppercase tracking-wider font-semibold text-ink">
-                    Guide Photos ({values.images.length}/{MAX_PAGE_IMAGES})
-                  </span>
-                  <span className="text-xs text-ink-2">
-                    Displayed uncropped on the page cleanly
-                  </span>
-                </div>
-
-                {values.images.length > 0 && (
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {values.images.map((img, idx) => (
-                      <li key={`${img.url}-${idx}`} className="border border-line bg-ground p-3 space-y-2.5">
-                        <div className="relative aspect-[4/3] w-full bg-white border border-line overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={img.url}
-                            alt={img.caption || `Page visual ${idx + 1}`}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            htmlFor={`pg-img-cap-${idx}`}
-                            className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
-                          >
-                            Caption (optional)
-                          </label>
-                          <input
-                            id={`pg-img-cap-${idx}`}
-                            type="text"
-                            maxLength={140}
-                            value={img.caption || ''}
-                            onChange={(e) => {
-                              const nextCaption = e.target.value;
-                              setValues((v) => ({
-                                ...v,
-                                images: v.images.map((item, i) =>
-                                  i === idx ? { ...item, caption: nextCaption } : item
-                                ),
-                              }));
-                            }}
-                            placeholder="e.g. How to measure ring diameter"
-                            className={inputClass}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex gap-1">
+                      return (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        {/* ===== List ===== */}
+                        <aside className={`lg:col-span-4 ${cardClass}`} aria-label="Content pages">
+                          <div className="flex items-center justify-between gap-3 p-4 border-b border-line">
+                            <h2 className={cardTitleClass}>All pages ({pages.length})</h2>
                             <button
                               type="button"
-                              onClick={() => moveImage(idx, -1)}
-                              disabled={idx === 0}
-                              aria-label={`Move photo ${idx + 1} left`}
-                              className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
+                              onClick={openNew}
+                              className="bg-ink text-white px-4 min-h-[44px] text-xs uppercase tracking-wider font-semibold hover:bg-neutral-800 transition whitespace-nowrap"
                             >
-                              ←
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveImage(idx, 1)}
-                              disabled={idx === values.images.length - 1}
-                              aria-label={`Move photo ${idx + 1} right`}
-                              className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
-                            >
-                              →
+                              Add page
                             </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeImage(idx)}
-                            className="min-h-[44px] px-2 text-red-700 hover:text-red-900 underline font-semibold uppercase"
-                          >
-                            Remove
-                          </button>
+
+                          {pages.length === 0 ? (
+                            <p className="p-6 text-xs text-ink-2">No pages yet. Use Add page to write the first one.</p>
+                          ) : (
+                            <ul className="divide-y divide-line">
+                              {pages.map((page) => {
+                                const active = isEdit && activeSlug === page.slug;
+                                return (
+                                  <li
+                                    key={page.slug}
+                                    className={`flex items-stretch ${active ? 'bg-ground border-l-2 border-ink' : 'border-l-2 border-transparent'}`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => open(page)}
+                                      aria-current={active ? 'true' : undefined}
+                                      className="flex-1 min-w-0 min-h-[44px] text-left px-4 py-3.5 hover:bg-neutral-50 transition"
+                                    >
+                                      <span className="block text-sm font-medium text-ink truncate">{page.title}</span>
+                                      <span className="block text-xs font-mono text-ink-2 truncate">/pages/{page.slug}</span>
+                                      <span className="block text-xs text-ink-2 mt-0.5">
+                                        {footerLabelFor(page.slug) ? 'Linked in footer' : 'Not in footer'}
+                                        {page.updatedAt ? ` · Updated ${formatDate(page.updatedAt)}` : ''}
+                                      </span>
+                                    </button>
+                                    <a
+                                      href={`/pages/${page.slug}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 min-w-[44px] flex items-center justify-center text-xs uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline whitespace-nowrap"
+                                      aria-label={`View ${page.title} on the shop`}
+                                    >
+                                      View
+                                    </a>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </aside>
+
+                        {/* ===== Editor ===== */}
+                        <div ref={editorRef} className="lg:col-span-8 scroll-mt-28">
+                          {mode === 'none' ? (
+                            <div className={`${cardClass} p-8`}>
+                              <h2 className={`${cardTitleClass} mb-2`}>Edit a page</h2>
+                              <p className="text-xs text-ink-2 leading-relaxed max-w-md">
+                                Choose a page from the list to change its text, or add a new page. Saved changes show on the shop
+                                straight away.
+                              </p>
+                            </div>
+                          ) : (
+                            <form onSubmit={handleSave} noValidate className={`${cardClass} p-6 text-xs`}>
+                              <div className="flex flex-wrap items-baseline justify-between gap-3 pb-2 mb-4 border-b border-line">
+                                <h2 className={cardTitleClass}>
+                                  {isNew ? 'New page' : 'Edit page'}
+                                  {dirty && <span className="ml-3 text-xs font-sans font-semibold text-amber-800">Unsaved changes</span>}
+                                </h2>
+                                {isEdit && (
+                                  <a
+                                    href={`/pages/${activeSlug}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="uppercase tracking-wider font-semibold text-ink-2 hover:text-ink underline min-h-[44px] inline-flex items-center"
+                                  >
+                                    View live page ↗
+                                  </a>
+                                )}
+                              </div>
+
+                              {error && (
+                                <p role="alert" className="mb-5 text-xs text-red-700 bg-red-50 p-3 border border-red-200">
+                                  {error}
+                                </p>
+                              )}
+                              {message && (
+                                <p
+                                  role="status"
+                                  className="mb-5 text-xs font-semibold text-emerald-800 bg-emerald-50 p-3 border border-emerald-200"
+                                >
+                                  {message}
+                                </p>
+                              )}
+
+                              <div className="space-y-5">
+                                {/* Title */}
+                                <div>
+                                  <div className="flex items-baseline justify-between">
+                                    <label htmlFor="pg-title" className={labelClass}>
+                                      Title *
+                                    </label>
+                                    <span className={`text-xs ${titleOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
+                                      {values.title.length} / {TITLE_MAX}
+                                    </span>
+                                  </div>
+                                  <input
+                                    id="pg-title"
+                                    type="text"
+                                    value={values.title}
+                                    onChange={(e) => changeTitle(e.target.value)}
+                                    placeholder="e.g. Shipping & Returns Policy"
+                                    className={inputClass}
+                                  />
+                                  <p className="text-xs text-ink-2 mt-1">Shown as the heading at the top of the page.</p>
+                                </div>
+
+                                {/* Slug */}
+                                <div>
+                                  <label htmlFor="pg-slug" className={labelClass}>
+                                    Slug (web address)
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <input
+                                      id="pg-slug"
+                                      type="text"
+                                      value={values.slug}
+                                      readOnly={slugLocked}
+                                      onChange={(e) => {
+                                        setSlugTouched(true);
+                                        setValues((v) => ({ ...v, slug: e.target.value }));
+                                      }}
+                                      onBlur={() => setValues((v) => ({ ...v, slug: slugify(v.slug) }))}
+                                      placeholder="created from the title"
+                                      className={`${inputClass} font-mono ${slugLocked ? 'bg-ground text-ink-2' : ''}`}
+                                    />
+                                    {slugLocked && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setSlugLocked(false)}
+                                        className="px-3 min-h-[44px] border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold whitespace-nowrap"
+                                      >
+                                        Change
+                                      </button>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-ink-2 mt-1">
+                                    Page address: /pages/{effectiveSlug || '...'}
+                                  </p>
+                                  {isEdit && !slugLocked && (
+                                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
+                                      {footerLabel ? (
+                                        <>
+                                          The shop footer links to /pages/{activeSlug} (&ldquo;{footerLabel}&rdquo;). If you change the
+                                          slug, that footer link shows &ldquo;not found&rdquo; until a developer updates it. There is
+                                          no automatic redirect.
+                                        </>
+                                      ) : (
+                                        <>
+                                          Changing the slug changes the page address. Any link or bookmark that uses the old address
+                                          stops working. There is no automatic redirect.
+                                        </>
+                                      )}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Body */}
+                                <div>
+                                  <div className="flex items-baseline justify-between">
+                                    <label htmlFor="pg-body" className={labelClass}>
+                                      Body *
+                                    </label>
+                                    <span className={`text-xs ${bodyOver ? 'text-red-700 font-semibold' : 'text-ink-2'}`}>
+                                      {body.length.toLocaleString('en-US')} / {BODY_MAX.toLocaleString('en-US')}
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    id="pg-body"
+                                    value={values.body}
+                                    onChange={(e) => setValues((v) => ({ ...v, body: e.target.value }))}
+                                    rows={16}
+                                    className={`${inputClass} leading-relaxed resize-y`}
+                                  />
+                                  <p className="text-xs text-ink-2 mt-1">
+                                    Plain text only. Leave an empty line between paragraphs. A single line break is not kept, so the
+                                    lines on either side of it join into one paragraph.
+                                    {paragraphs.length > 0 && ` This page will show ${paragraphs.length} paragraph${paragraphs.length === 1 ? '' : 's'}.`}
+                                  </p>
+                                  {hasSingleBreaks && (
+                                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 mt-2">
+                                      Some lines are separated by a single line break. On the shop they will run together as one
+                                      paragraph. Add an empty line between them to keep them apart.
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Meta description */}
+                                <div>
+                                  <div className="flex items-baseline justify-between">
+                                    <label htmlFor="pg-meta" className={labelClass}>
+                                      Meta description
+                                    </label>
+                                    <span className="text-xs text-ink-2">
+                                      {metaLength} / about {META_SOFT_MAX}
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    id="pg-meta"
+                                    value={values.metaDesc}
+                                    onChange={(e) => setValues((v) => ({ ...v, metaDesc: e.target.value }))}
+                                    rows={2}
+                                    className={`${inputClass} resize-y`}
+                                  />
+                                  <p className="text-xs text-ink-2 mt-1">
+                                    Optional. The short summary search engines show under the page title. If empty, a standard
+                                    sentence is used.
+                                  </p>
+                                </div>
+
+                                {/* Page Images */}
+                                <div className="border-t border-line pt-5 space-y-3">
+                                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                    <span className="block uppercase tracking-wider font-semibold text-ink">
+                                      Guide Photos ({values.images.length}/{MAX_PAGE_IMAGES})
+                                    </span>
+                                    <span className="text-xs text-ink-2">
+                                      Displayed uncropped on the page cleanly
+                                    </span>
+                                  </div>
+
+                                  {values.images.length > 0 && (
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                      {values.images.map((img, idx) => (
+                                        <li key={`${img.url}-${idx}`} className="border border-line bg-ground p-3 space-y-2.5">
+                                          <div className="relative aspect-[4/3] w-full bg-white border border-line overflow-hidden">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                              src={img.url}
+                                              alt={img.caption || `Page visual ${idx + 1}`}
+                                              className="w-full h-full object-contain"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label
+                                              htmlFor={`pg-img-cap-${idx}`}
+                                              className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+                                            >
+                                              Caption (optional)
+                                            </label>
+                                            <input
+                                              id={`pg-img-cap-${idx}`}
+                                              type="text"
+                                              maxLength={140}
+                                              value={img.caption || ''}
+                                              onChange={(e) => {
+                                                const nextCaption = e.target.value;
+                                                setValues((v) => ({
+                                                  ...v,
+                                                  images: v.images.map((item, i) =>
+                                                    i === idx ? { ...item, caption: nextCaption } : item
+                                                  ),
+                                                }));
+                                              }}
+                                              placeholder="e.g. How to measure ring diameter"
+                                              className={inputClass}
+                                            />
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="flex gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => moveImage(idx, -1)}
+                                                disabled={idx === 0}
+                                                aria-label={`Move photo ${idx + 1} left`}
+                                                className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
+                                              >
+                                                ←
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => moveImage(idx, 1)}
+                                                disabled={idx === values.images.length - 1}
+                                                aria-label={`Move photo ${idx + 1} right`}
+                                                className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
+                                              >
+                                                →
+                                              </button>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => removeImage(idx)}
+                                              className="min-h-[44px] px-2 text-red-700 hover:text-red-900 underline font-semibold uppercase"
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <label
+                                      htmlFor="pg-photo-upload"
+                                      className={`inline-flex items-center justify-center min-h-[44px] px-4 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${uploadingPhotos || values.images.length >= MAX_PAGE_IMAGES
+                                          ? 'opacity-40 pointer-events-none'
+                                          : ''
+                                        }`}
+                                    >
+                                      {uploadingPhotos ? 'Uploading...' : 'Upload Guide Photos'}
+                                    </label>
+                                    <input
+                                      id="pg-photo-upload"
+                                      type="file"
+                                      accept="image/*"
+                                      multiple
+                                      disabled={uploadingPhotos || values.images.length >= MAX_PAGE_IMAGES}
+                                      onChange={handlePhotoUpload}
+                                      className="sr-only"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Ladies & Gents Ring Size Presets when editing Size Guide */}
+                                {isSizeGuideEditor && (
+                                  <div className="border-t border-line pt-5 space-y-4">
+                                    <div>
+                                      <h3 className="font-display text-lg font-medium text-ink">
+                                        Saved Ring Sizes (Ladies &amp; Gents)
+                                      </h3>
+                                      <p className="text-xs text-ink-2 mt-0.5">
+                                        Shown on <span className="font-mono text-ink">/pages/size-guide</span>, inside the
+                                        product Size Guide popup, and as presets when creating Ladies or Gents rings.
+                                      </p>
+                                    </div>
+
+                                    <RingSizeTableEditor
+                                      heading="Ladies Rings Sizing"
+                                      groupKey="ladies"
+                                      rows={ringSizes.ladies}
+                                      onChange={(ladies) => setRingSizes((s) => ({ ...s, ladies }))}
+                                    />
+
+                                    <RingSizeTableEditor
+                                      heading="Gents Rings Sizing"
+                                      groupKey="gents"
+                                      rows={ringSizes.gents}
+                                      onChange={(gents) => setRingSizes((s) => ({ ...s, gents }))}
+                                    />
+
+                                    <div>
+                                      <label htmlFor="pg-size-tip" className={labelClass}>
+                                        Sizing Fit Tip
+                                      </label>
+                                      <input
+                                        id="pg-size-tip"
+                                        type="text"
+                                        maxLength={RING_SIZE_LIMITS.fitTipMax}
+                                        value={ringSizes.fitTip}
+                                        onChange={(e) => setRingSizes((s) => ({ ...s, fitTip: e.target.value }))}
+                                        className={inputClass}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-6 pt-5 border-t border-line flex flex-col sm:flex-row sm:items-center gap-3">
+                                <button
+                                  type="submit"
+                                  disabled={saving || uploadingPhotos}
+                                  className="bg-ink text-white px-8 min-h-[44px] py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
+                                >
+                                  {saving ? 'Saving...' : isNew ? 'Create page' : 'Save changes'}
+                                </button>
+                                {isEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={discard}
+                                    disabled={!dirty || saving}
+                                    className="px-4 min-h-[44px] py-3 border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold disabled:opacity-40 transition"
+                                  >
+                                    Discard changes
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={closeEditor}
+                                  disabled={saving}
+                                  className="sm:ml-auto min-h-[44px] px-2 text-ink-2 hover:text-ink underline uppercase tracking-wider font-semibold disabled:opacity-40"
+                                >
+                                  {isNew ? 'Cancel' : 'Close'}
+                                </button>
+                              </div>
+                            </form>
+                          )}
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <label
-                    htmlFor="pg-photo-upload"
-                    className={`inline-flex items-center justify-center min-h-[44px] px-4 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${
-                      uploadingPhotos || values.images.length >= MAX_PAGE_IMAGES
-                        ? 'opacity-40 pointer-events-none'
-                        : ''
-                    }`}
-                  >
-                    {uploadingPhotos ? 'Uploading...' : 'Upload Guide Photos'}
-                  </label>
-                  <input
-                    id="pg-photo-upload"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    disabled={uploadingPhotos || values.images.length >= MAX_PAGE_IMAGES}
-                    onChange={handlePhotoUpload}
-                    className="sr-only"
-                  />
-                </div>
-              </div>
-
-              {/* Ladies & Gents Ring Size Presets when editing Size Guide */}
-              {isSizeGuideEditor && (
-                <div className="border-t border-line pt-5 space-y-4">
-                  <div>
-                    <h3 className="font-display text-lg font-medium text-ink">
-                      Saved Ring Sizes (Ladies &amp; Gents)
-                    </h3>
-                    <p className="text-xs text-ink-2 mt-0.5">
-                      Shown on <span className="font-mono text-ink">/pages/size-guide</span>, inside the
-                      product Size Guide popup, and as presets when creating Ladies or Gents rings.
-                    </p>
-                  </div>
-
-                  <RingSizeTableEditor
-                    heading="Ladies Rings Sizing"
-                    groupKey="ladies"
-                    rows={ringSizes.ladies}
-                    onChange={(ladies) => setRingSizes((s) => ({ ...s, ladies }))}
-                  />
-
-                  <RingSizeTableEditor
-                    heading="Gents Rings Sizing"
-                    groupKey="gents"
-                    rows={ringSizes.gents}
-                    onChange={(gents) => setRingSizes((s) => ({ ...s, gents }))}
-                  />
-
-                  <div>
-                    <label htmlFor="pg-size-tip" className={labelClass}>
-                      Sizing Fit Tip
-                    </label>
-                    <input
-                      id="pg-size-tip"
-                      type="text"
-                      maxLength={RING_SIZE_LIMITS.fitTipMax}
-                      value={ringSizes.fitTip}
-                      onChange={(e) => setRingSizes((s) => ({ ...s, fitTip: e.target.value }))}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 pt-5 border-t border-line flex flex-col sm:flex-row sm:items-center gap-3">
-              <button
-                type="submit"
-                disabled={saving || uploadingPhotos}
-                className="bg-ink text-white px-8 min-h-[44px] py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
-              >
-                {saving ? 'Saving...' : isNew ? 'Create page' : 'Save changes'}
-              </button>
-              {isEdit && (
-                <button
-                  type="button"
-                  onClick={discard}
-                  disabled={!dirty || saving}
-                  className="px-4 min-h-[44px] py-3 border border-line text-ink-2 hover:border-ink hover:text-ink uppercase tracking-wider font-semibold disabled:opacity-40 transition"
-                >
-                  Discard changes
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={closeEditor}
-                disabled={saving}
-                className="sm:ml-auto min-h-[44px] px-2 text-ink-2 hover:text-ink underline uppercase tracking-wider font-semibold disabled:opacity-40"
-              >
-                {isNew ? 'Cancel' : 'Close'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      <ConfirmDialog
-        open={Boolean(pendingConfirm)}
-        onOpenChange={(openState) => {
-          if (!openState) setPendingConfirm(null);
-        }}
-        title={pendingConfirm?.title || ''}
-        description={pendingConfirm?.description || ''}
-        confirmLabel={pendingConfirm?.confirmLabel || 'Confirm'}
-        destructive={pendingConfirm?.destructive ?? true}
-        onConfirm={() => pendingConfirm?.onConfirm()}
-      />
-    </div>
-  );
+                        <ConfirmDialog
+                          open={Boolean(pendingConfirm)}
+                          onOpenChange={(openState) => {
+                            if (!openState) setPendingConfirm(null);
+                          }}
+                          title={pendingConfirm?.title || ''}
+                          description={pendingConfirm?.description || ''}
+                          confirmLabel={pendingConfirm?.confirmLabel || 'Confirm'}
+                          destructive={pendingConfirm?.destructive ?? true}
+                          onConfirm={() => pendingConfirm?.onConfirm()}
+                        />
+                      </div>
+                      );
 }

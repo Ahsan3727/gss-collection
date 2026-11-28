@@ -412,7 +412,6 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     const gentsRows = page.locator('input[id^="sz-gents-label-"]');
     const lastIdx = (await gentsRows.count()) - 1;
     await page.locator(`#sz-gents-label-${lastIdx}`).fill('13');
-    await page.locator(`#sz-gents-diam-${lastIdx}`).fill('22.2');
     await page.getByRole('button', { name: /Save changes/i }).click();
     await expect(page.getByText(/Changes saved/i)).toBeVisible();
 
@@ -420,7 +419,9 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await expect(page.getByText('Ruler measurement example')).toBeVisible();
     await expect(page.getByRole('heading', { name: /Ladies Rings Sizing/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Gents Rings Sizing/i })).toBeVisible();
-    await expect(page.getByRole('cell', { name: '13', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('list', { name: /Gents Rings Sizing sizes/i }).getByText('13', { exact: true })
+    ).toBeVisible();
     await assertNoHorizontalOverflow(page, '/pages/size-guide');
     await assertNoAxeViolations(page, '/pages/size-guide');
 
@@ -431,7 +432,9 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await expect(modal).toBeVisible();
     await expect(modal.getByRole('tab', { name: /Ladies Rings/i })).toHaveAttribute('aria-selected', 'true');
     await modal.getByRole('tab', { name: /Gents Rings/i }).click();
-    await expect(modal.getByRole('cell', { name: '13', exact: true })).toBeVisible();
+    await expect(
+      modal.getByRole('list', { name: /Gents rings sizes/i }).getByText('13', { exact: true })
+    ).toBeVisible();
     await expect(modal.getByText('Ruler measurement example')).toBeVisible();
     await modal.getByRole('button', { name: /Close size guide/i }).first().click();
 
