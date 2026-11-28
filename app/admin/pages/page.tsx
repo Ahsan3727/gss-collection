@@ -1,10 +1,12 @@
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Page } from '@/lib/models/Page';
 import PagesClient from '@/components/admin/PagesClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPagesPage() {
+  await requireAdminPage();
   await connectDB();
   const pages = await Page.find().sort({ title: 1 }).lean();
 

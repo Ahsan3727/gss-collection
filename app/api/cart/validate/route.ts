@@ -5,7 +5,7 @@ import { loadSettings } from '@/lib/settings';
 import { resolveShippingOption, resolveVariantSelection } from '@/lib/pricing';
 import { CartValidateInputSchema } from '@/lib/schemas';
 import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
-import type { ProductRecord } from '@/lib/types';
+import { parseJsonBody } from '@/lib/http';
 
 export async function POST(req: Request) {
   try {
@@ -15,8 +15,10 @@ export async function POST(req: Request) {
       return rateLimitExceededResponse(limit.reset);
     }
 
-    const rawBody: unknown = await req.json();
-    const parsed = CartValidateInputSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+
+    const parsed = CartValidateInputSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid cart payload' }, { status: 400 });
     }
@@ -35,26 +37,41 @@ export async function POST(req: Request) {
     }
 
     await connectDB();
-    const settings = await loadSettings();
+
+    const identifiers = Array.from(
+      new Set(
+        rawItems.flatMap((i) =>
+          [i.productId, i.handle].filter((v): v is string => Boolean(v && v.trim()))
+        )
+      )
+    );
+
+    const [settings, candidateProducts] = await Promise.all([
+      loadSettings(),
+      identifiers.length > 0
+        ? Product.find({
+          status: 'active',
+          $or: [{ id: { $in: identifiers } }, { handle: { $in: identifiers } }],
+        }).lean()
+        : Promise.resolve([]),
+    ]);
+
+    const productByKey = new Map<string, (typeof candidateProducts)[number]>();
+    for (const p of candidateProducts) {
+      if (p.id) productByKey.set(p.id, p);
+      if (p.handle) productByKey.set(p.handle, p);
+    }
 
     const validatedItems = [];
     const issues: string[] = [];
     let subtotal = 0;
 
     for (const item of rawItems) {
-      const lookupClauses: Record<string, string>[] = [];
-      if (item.productId) {
-        lookupClauses.push({ id: item.productId }, { handle: item.productId });
-      }
-      if (item.handle) {
-        lookupClauses.push({ handle: item.handle });
-      }
-      if (lookupClauses.length === 0) continue;
+      if (!item.productId && !item.handle) continue;
 
-      const product = (await Product.findOne({
-        $or: lookupClauses,
-        status: 'active',
-      }).lean()) as ProductRecord | null;
+      const product =
+        (item.productId ? productByKey.get(item.productId) : undefined) ||
+        (item.handle ? productByKey.get(item.handle) : undefined);
 
       if (!product) {
         issues.push(`"${item.title || 'Selected item'}" is no longer available.`);

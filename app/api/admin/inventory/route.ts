@@ -5,6 +5,8 @@ import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models/Product';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 const inventoryPatchSchema = z.object({
   productId: z.string().min(1),
@@ -19,8 +21,9 @@ export async function PATCH(req: Request) {
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const rawBody: unknown = await req.json();
-    const parsed = inventoryPatchSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = inventoryPatchSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid stock payload' }, { status: 400 });
     }
@@ -60,12 +63,19 @@ export async function PATCH(req: Request) {
     }
 
     await product.save();
-    await logAdminAction(auth.user.email, 'stock_update', 'Product', product.id, {
-      sku,
-      stone,
-      size,
-      newStock,
-    });
+    await logAdminAction(
+      auth.user.email,
+      'stock_update',
+      'Product',
+      product.id,
+      {
+        sku,
+        stone,
+        size,
+        newStock,
+      },
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('products');
     revalidateTag(`product:${product.handle}`);

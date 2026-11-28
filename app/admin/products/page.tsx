@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { loadCategories } from '@/lib/categories';
 import { Product } from '@/lib/models/Product';
 import { formatMoney } from '@/lib/money';
@@ -34,6 +35,7 @@ function buildProductsHref(opts: { status?: string; cat?: string; q?: string; pa
 }
 
 export default async function AdminProductsPage({ searchParams }: AdminProductsPageProps) {
+  await requireAdminPage();
   const statusFilter = searchParams?.status || 'all';
   const catFilter = (searchParams?.cat || 'all').toLowerCase();
   const queryParam = (searchParams?.q || '').trim();

@@ -1,4 +1,5 @@
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Message } from '@/lib/models/Message';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import InboxClient from '@/components/admin/InboxClient';
@@ -7,6 +8,7 @@ import type { MessageRecord } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminInboxPage() {
+  await requireAdminPage();
   await connectDB();
   const messages = await Message.find().sort({ createdAt: -1 }).lean();
 

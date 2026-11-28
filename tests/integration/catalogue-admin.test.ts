@@ -37,6 +37,7 @@ import {
   DELETE as deleteCategory,
 } from '@/app/api/admin/categories/[slug]/route';
 import { PATCH as patchReview, DELETE as deleteReview } from '@/app/api/reviews/[id]/route';
+import { POST as changeAdminPassword } from '@/app/api/admin/password/route';
 import { POST as postVitals } from '@/app/api/vitals/route';
 import {
   getApprovedReviews,
@@ -632,5 +633,45 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
 
     const syncedCat = await Category.findOne({ slug: 'size-guide-nav' }).lean();
     expect(syncedCat?.pageSlug).toBe('ring-size-chart');
+  });
+
+  it('rejects invalid ObjectIds on review moderation and supports admin password change', async () => {
+    mockSessionState.session = {
+      user: { id: 'a1', email: 'admin@gsscollection.pk', name: 'Admin', role: 'admin' },
+    };
+
+    const badRevPatch = await patchReview(jsonReq('http://localhost', 'PATCH', { approved: true }), {
+      params: { id: 'bad-id' },
+    });
+    expect(badRevPatch.status).toBe(400);
+
+    const badRevDel = await deleteReview(new Request('http://localhost'), {
+      params: { id: 'bad-id' },
+    });
+    expect(badRevDel.status).toBe(400);
+
+    // Bootstrap admin and change password via POST /api/admin/password
+    const provider = authOptions.providers[0] as {
+      options?: { authorize?: (c: Record<string, string>, r: unknown) => Promise<unknown> };
+    };
+    const authorize = provider.options!.authorize!;
+    await authorize(
+      { email: 'admin@gsscollection.pk', password: 'BootstrapPassword1!' },
+      { headers: { 'x-forwarded-for': '10.20.30.50' } }
+    );
+
+    const pwRes = await changeAdminPassword(
+      jsonReq('http://localhost/api/admin/password', 'POST', {
+        currentPassword: 'BootstrapPassword1!',
+        newPassword: 'UpdatedStrongPassword9!',
+      })
+    );
+    expect(pwRes.status).toBe(200);
+
+    const relogin = await authorize(
+      { email: 'admin@gsscollection.pk', password: 'UpdatedStrongPassword9!' },
+      { headers: { 'x-forwarded-for': '10.20.30.51' } }
+    );
+    expect(relogin).toMatchObject({ email: 'admin@gsscollection.pk', role: 'superadmin' });
   });
 });

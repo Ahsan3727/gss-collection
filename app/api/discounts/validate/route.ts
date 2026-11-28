@@ -5,6 +5,7 @@ import { loadSettings } from '@/lib/settings';
 import { computeDiscount, resolveShippingOption } from '@/lib/pricing';
 import { DiscountValidateInputSchema } from '@/lib/schemas';
 import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
+import { parseJsonBody } from '@/lib/http';
 
 export async function POST(req: Request) {
   try {
@@ -14,8 +15,9 @@ export async function POST(req: Request) {
       return rateLimitExceededResponse(limit.reset, 'Too many discount attempts. Please wait a few minutes.');
     }
 
-    const rawBody: unknown = await req.json();
-    const parsed = DiscountValidateInputSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = DiscountValidateInputSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message || 'Please enter a discount code' },

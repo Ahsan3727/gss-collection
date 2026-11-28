@@ -65,7 +65,7 @@ export async function takeStock(
 ): Promise<boolean> {
   if (mode === 'variant') {
     const result = await model.updateOne(
-      { _id: dbId, variants: { $elemMatch: { stone, size, stock: { $gte: qty } } } },
+      { _id: dbId, status: 'active', variants: { $elemMatch: { stone, size, stock: { $gte: qty } } } },
       { $inc: { 'variants.$.stock': -qty, sold: qty } }
     );
     return result.modifiedCount === 1;
@@ -73,7 +73,7 @@ export async function takeStock(
 
   const key = `inventory.${stone}:${size}`;
   const result = await model.updateOne(
-    { _id: dbId, [key]: { $gte: qty } },
+    { _id: dbId, status: 'active', [key]: { $gte: qty } },
     { $inc: { [key]: -qty, sold: qty } }
   );
   return result.modifiedCount === 1;

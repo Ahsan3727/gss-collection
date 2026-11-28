@@ -7,6 +7,8 @@ import { Product } from '@/lib/models/Product';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
 import { buildProductDocument, parseProductWrite } from '@/lib/product-write';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,12 +46,14 @@ export async function GET(req: Request) {
     else if (sort === 'price-desc') sortOption = { base: -1 };
     else if (sort === 'best') sortOption = { sold: -1 };
 
-    const total = await Product.countDocuments(query);
-    const products = await Product.find(query)
-      .sort(sortOption)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    const [total, products] = await Promise.all([
+      Product.countDocuments(query),
+      Product.find(query)
+        .sort(sortOption)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+    ]);
 
     return NextResponse.json({
       products: JSON.parse(JSON.stringify(products)),
@@ -71,8 +75,9 @@ export async function POST(req: Request) {
   if ('errorResponse' in authCheck) return authCheck.errorResponse;
 
   try {
-    const body: unknown = await req.json();
-    const parsed = parseProductWrite(body);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = parseProductWrite(bodyResult.data);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
@@ -105,10 +110,17 @@ export async function POST(req: Request) {
 
       const document = buildProductDocument(parsed.data);
       const newProduct = await Product.create(document);
-      await logAdminAction(authCheck.user.email, 'product_create', 'Product', newProduct.id, {
-        title: newProduct.title,
-        handle: newProduct.handle,
-      });
+      await logAdminAction(
+        authCheck.user.email,
+        'product_create',
+        'Product',
+        newProduct.id,
+        {
+          title: newProduct.title,
+          handle: newProduct.handle,
+        },
+        clientIpFromRequest(req)
+      );
 
       revalidateTag('products');
       revalidateTag('categories');

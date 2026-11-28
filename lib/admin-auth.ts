@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth';
+import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
 import { isAdminRole } from '@/lib/roles';
@@ -34,6 +35,14 @@ export async function requireAdmin(): Promise<AdminSessionUser> {
   const admin = await getAdminSession();
   if (!admin) {
     throw new Error('Unauthorized: Admin authentication required');
+  }
+  return admin;
+}
+
+export async function requireAdminPage(): Promise<AdminSessionUser> {
+  const admin = await getAdminSession();
+  if (!admin) {
+    redirect('/admin/login');
   }
   return admin;
 }

@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { z } from 'zod';
 import { connectDB } from '@/lib/db';
+import { Product } from '@/lib/models/Product';
 import { Review } from '@/lib/models/Review';
 import { loadSettings } from '@/lib/settings';
 import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
+import { parseJsonBody } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,9 +42,10 @@ export async function POST(req: Request) {
       return rateLimitExceededResponse(limit.reset, 'Too many reviews submitted recently. Please try later.');
     }
 
-    const body: unknown = await req.json();
-    const parsed = reviewSchema.safeParse(body);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
 
+    const parsed = reviewSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message || 'Invalid review' },
@@ -51,8 +54,15 @@ export async function POST(req: Request) {
     }
 
     await connectDB();
-    const settings = await loadSettings();
+    const productExists = await Product.exists({
+      $or: [{ id: parsed.data.productId }, { handle: parsed.data.productId }],
+      status: 'active',
+    });
+    if (!productExists) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
 
+    const settings = await loadSettings();
     const autoApprove = !settings.moderateReviews;
 
     const review = await Review.create({

@@ -4,6 +4,8 @@ import { Discount } from '@/lib/models/Discount';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
 import { AdminDiscountCreateSchema } from '@/lib/schemas';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export async function GET() {
   const auth = await requireAdminApi();
@@ -23,8 +25,9 @@ export async function POST(req: Request) {
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const rawBody: unknown = await req.json();
-    const parsed = AdminDiscountCreateSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = AdminDiscountCreateSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message || 'Missing or invalid discount fields' },
@@ -45,7 +48,14 @@ export async function POST(req: Request) {
       uses: 0,
     });
 
-    await logAdminAction(auth.user.email, 'discount_create', 'Discount', newDiscount.code);
+    await logAdminAction(
+      auth.user.email,
+      'discount_create',
+      'Discount',
+      newDiscount.code,
+      undefined,
+      clientIpFromRequest(req)
+    );
     return NextResponse.json(
       { success: true, discount: JSON.parse(JSON.stringify(newDiscount)) },
       { status: 201 }

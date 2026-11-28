@@ -5,6 +5,8 @@ import { Page } from '@/lib/models/Page';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
 import { parsePageWrite } from '@/lib/page-write';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +29,9 @@ export async function POST(req: Request) {
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const parsed = parsePageWrite(await req.json());
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = parsePageWrite(bodyResult.data);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
@@ -39,9 +43,14 @@ export async function POST(req: Request) {
     }
 
     const page = await Page.create(parsed.data);
-    await logAdminAction(auth.user.email, 'page_create', 'Page', page.slug, {
-      title: page.title,
-    });
+    await logAdminAction(
+      auth.user.email,
+      'page_create',
+      'Page',
+      page.slug,
+      { title: page.title },
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('pages');
     revalidateTag(`page:${page.slug}`);

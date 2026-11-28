@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Order } from '@/lib/models/Order';
 import { Product } from '@/lib/models/Product';
 import { Message } from '@/lib/models/Message';
@@ -10,14 +11,15 @@ export const dynamic = 'force-dynamic';
 async function getDashboardStats() {
   try {
     await connectDB();
-    const orders = await Order.find().sort({ createdAt: -1 }).limit(10).lean();
-    const totalOrders = await Order.countDocuments();
-    const totalProducts = await Product.countDocuments();
-    const totalMessages = await Message.countDocuments({ read: false });
-
-    const revenueAgg = await Order.aggregate([
-      { $match: { fulfil: { $ne: 'cancelled' } } },
-      { $group: { _id: null, total: { $sum: '$total' } } },
+    const [orders, totalOrders, totalProducts, totalMessages, revenueAgg] = await Promise.all([
+      Order.find().sort({ createdAt: -1 }).limit(10).lean(),
+      Order.countDocuments(),
+      Product.countDocuments({ status: 'active' }),
+      Message.countDocuments({ read: false }),
+      Order.aggregate([
+        { $match: { fulfil: { $ne: 'cancelled' } } },
+        { $group: { _id: null, total: { $sum: '$total' } } },
+      ]),
     ]);
     const totalRevenue = revenueAgg[0]?.total || 0;
 
@@ -41,6 +43,7 @@ async function getDashboardStats() {
 }
 
 export default async function AdminDashboardPage() {
+  await requireAdminPage();
   const stats = await getDashboardStats();
 
   return (

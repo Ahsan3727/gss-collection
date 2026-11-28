@@ -13,7 +13,10 @@ export const OrderItemInputSchema = z.object({
 
 export const CreateOrderInputSchema = z
   .object({
-    items: z.array(OrderItemInputSchema).min(1, 'Order must contain at least one item'),
+    items: z
+      .array(OrderItemInputSchema)
+      .min(1, 'Order must contain at least one item')
+      .max(50, 'Order cannot contain more than 50 line items'),
     contact: z.object({
       email: z.string().trim().toLowerCase().email('Please enter a valid email address'),
       phone: z.string().min(8, 'Please enter a valid phone number'),
@@ -42,19 +45,36 @@ export const CreateOrderInputSchema = z
         path: ['contact', 'phone'],
       });
     }
+
+    const qtyByVariant = new Map<string, number>();
+    for (const item of val.items) {
+      const key = `${item.productId}::${item.stone}::${item.size}`;
+      const nextQty = (qtyByVariant.get(key) || 0) + item.qty;
+      if (nextQty > 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Maximum quantity of 10 per item variant exceeded',
+          path: ['items'],
+        });
+        break;
+      }
+      qtyByVariant.set(key, nextQty);
+    }
   });
 
 export const CartValidateInputSchema = z.object({
-  items: z.array(
-    z.object({
-      productId: z.string().optional(),
-      handle: z.string().optional(),
-      title: z.string().optional(),
-      stone: z.string().optional(),
-      size: z.string().optional(),
-      qty: z.number().optional(),
-    })
-  ),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().optional(),
+        handle: z.string().optional(),
+        title: z.string().optional(),
+        stone: z.string().optional(),
+        size: z.string().optional(),
+        qty: z.number().optional(),
+      })
+    )
+    .max(50, 'Too many items in cart'),
   country: z.string().optional(),
   shippingMethodId: z.string().optional(),
 });
@@ -85,4 +105,12 @@ export const AdminOrderPatchSchema = z.object({
   trackingCarrier: z.string().max(80).optional(),
   trackingNumber: z.string().max(100).optional(),
   adminNote: z.string().max(500).optional(),
+});
+
+export const AdminPasswordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z
+    .string()
+    .min(8, 'New password must be at least 8 characters')
+    .max(128, 'New password must be 128 characters or fewer'),
 });

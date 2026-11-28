@@ -204,7 +204,12 @@ export async function getCollectionProducts(
         }
 
         if (safeStone) {
-          query.stones = safeStone;
+          if (query.stones) {
+            query.$and = [{ stones: query.stones }, { stones: safeStone }];
+            delete query.stones;
+          } else {
+            query.stones = safeStone;
+          }
         }
 
         let sortOption: Record<string, 1 | -1> = { createdAt: -1 };

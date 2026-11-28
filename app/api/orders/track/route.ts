@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     await connectDB();
 
     const cleanDigits = contact.replace(/\D/g, '');
-    const phoneRegex = cleanDigits.length >= 6 ? new RegExp(`${cleanDigits.slice(-9)}$`) : null;
+    const phoneRegex = cleanDigits.length >= 9 ? new RegExp(`${cleanDigits.slice(-9)}$`) : null;
 
     const contactClauses: Record<string, unknown>[] = [{ 'contact.email': contact }];
     if (phoneRegex) {

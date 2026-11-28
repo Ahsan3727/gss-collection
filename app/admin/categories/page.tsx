@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { getCategoriesWithCounts } from '@/lib/categories';
 import { Page } from '@/lib/models/Page';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -8,6 +9,7 @@ import CategoriesClient from '@/components/admin/CategoriesClient';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminCategoriesPage() {
+  await requireAdminPage();
   await connectDB();
   const [categories, rawPages] = await Promise.all([
     getCategoriesWithCounts(),

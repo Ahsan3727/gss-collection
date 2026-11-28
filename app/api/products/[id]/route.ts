@@ -12,6 +12,8 @@ import {
   productLookup,
   readDeltaMap,
 } from '@/lib/product-write';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +45,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const body: unknown = await req.json();
-    const parsed = parseProductWrite(body);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = parseProductWrite(bodyResult.data);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
@@ -114,11 +117,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       product.markModified('inventory');
 
       await product.save();
-      await logAdminAction(auth.user.email, 'product_update', 'Product', product.id, {
-        title: product.title,
-        handle: product.handle,
-        status: product.status,
-      });
+      await logAdminAction(
+        auth.user.email,
+        'product_update',
+        'Product',
+        product.id,
+        {
+          title: product.title,
+          handle: product.handle,
+          status: product.status,
+        },
+        clientIpFromRequest(req)
+      );
 
       revalidateTag('products');
       revalidateTag('categories');
@@ -136,7 +146,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
     const auth = await requireAdminApi();
     if ('errorResponse' in auth) return auth.errorResponse;
 
@@ -151,10 +161,17 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       product.status = 'archived';
       await product.save();
 
-      await logAdminAction(auth.user.email, 'product_archive', 'Product', product.id, {
-        title: product.title,
-        handle: product.handle,
-      });
+      await logAdminAction(
+        auth.user.email,
+        'product_archive',
+        'Product',
+        product.id,
+        {
+          title: product.title,
+          handle: product.handle,
+        },
+        clientIpFromRequest(req)
+      );
 
       revalidateTag('products');
       revalidateTag('categories');

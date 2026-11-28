@@ -7,6 +7,8 @@ import { Category } from '@/lib/models/Category';
 import { Page } from '@/lib/models/Page';
 import { Product } from '@/lib/models/Product';
 import { logAdminAction } from '@/lib/models/AuditLog';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +18,9 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
 
   try {
     const lookupSlug = decodeURIComponent(params.slug).toLowerCase().trim();
-    const parsed = parseCategoryWrite(await req.json());
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = parseCategoryWrite(bodyResult.data);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
@@ -57,10 +61,17 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
 
     const productCount = await Product.countDocuments({ cat: category.slug });
 
-    await logAdminAction(auth.user.email, 'category_update', 'Category', category.slug, {
-      previousSlug,
-      name: category.name,
-    });
+    await logAdminAction(
+      auth.user.email,
+      'category_update',
+      'Category',
+      category.slug,
+      {
+        previousSlug,
+        name: category.name,
+      },
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('categories');
     revalidateTag('products');
@@ -80,7 +91,7 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { slug: string } }) {
+export async function DELETE(req: Request, { params }: { params: { slug: string } }) {
   const auth = await requireAdminApi();
   if ('errorResponse' in auth) return auth.errorResponse;
 
@@ -106,9 +117,14 @@ export async function DELETE(_req: Request, { params }: { params: { slug: string
     }
 
     await category.deleteOne();
-    await logAdminAction(auth.user.email, 'category_delete', 'Category', category.slug, {
-      name: category.name,
-    });
+    await logAdminAction(
+      auth.user.email,
+      'category_delete',
+      'Category',
+      category.slug,
+      { name: category.name },
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('categories');
     revalidateTag('products');

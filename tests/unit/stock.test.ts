@@ -40,7 +40,7 @@ describe('stock helper', () => {
     const took = await takeStock(model, 'db1', 'variant', 'garnet', '7', 2);
     expect(took).toBe(true);
     expect(updateOne).toHaveBeenCalledWith(
-      { _id: 'db1', variants: { $elemMatch: { stone: 'garnet', size: '7', stock: { $gte: 2 } } } },
+      { _id: 'db1', status: 'active', variants: { $elemMatch: { stone: 'garnet', size: '7', stock: { $gte: 2 } } } },
       { $inc: { 'variants.$.stock': -2, sold: 2 } }
     );
 

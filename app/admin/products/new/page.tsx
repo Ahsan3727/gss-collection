@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { loadCategories } from '@/lib/categories';
 import ProductForm from '@/components/admin/ProductForm';
 
@@ -9,6 +10,7 @@ export default async function AdminNewProductPage({
 }: {
   searchParams?: { cat?: string };
 }) {
+  await requireAdminPage();
   const categories = (await loadCategories(true)).filter((c) => c.targetType !== 'page');
   const categoryOptions = categories.map((c) => ({
     slug: c.slug,

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { loadCategories } from '@/lib/categories';
 import { Product } from '@/lib/models/Product';
 import { productLookup, readDeltaMap } from '@/lib/product-write';
@@ -13,6 +14,7 @@ const KINDS = ['ring', 'bracelet', 'stone'];
 const STATUSES = ['active', 'draft', 'archived'];
 
 export default async function AdminEditProductPage({ params }: { params: { id: string } }) {
+  await requireAdminPage();
   await connectDB();
   const [product, categories] = await Promise.all([
     Product.findOne(productLookup(params.id)).lean() as Promise<ProductRecord | null>,

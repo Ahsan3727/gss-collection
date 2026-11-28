@@ -1,4 +1,5 @@
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Discount } from '@/lib/models/Discount';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import DiscountsClient from '@/components/admin/DiscountsClient';
@@ -7,6 +8,7 @@ import type { DiscountRecord } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDiscountsPage() {
+  await requireAdminPage();
   await connectDB();
   const discounts = await Discount.find().sort({ createdAt: -1 }).lean();
 

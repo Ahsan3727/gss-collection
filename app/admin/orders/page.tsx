@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Order } from '@/lib/models/Order';
 import { formatMoney } from '@/lib/money';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -24,6 +25,7 @@ function buildOrdersHref(opts: { status?: string; q?: string; page?: number }) {
 }
 
 export default async function AdminOrdersPage({ searchParams }: OrdersPageProps) {
+  await requireAdminPage();
   const statusFilter = searchParams?.status || 'all';
   const queryParam = (searchParams?.q || '').trim();
   const page = Math.max(1, parseInt(searchParams?.page || '1', 10) || 1);

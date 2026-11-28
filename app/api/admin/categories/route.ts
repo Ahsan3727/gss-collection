@@ -6,6 +6,8 @@ import { parseCategoryWrite } from '@/lib/category-write';
 import { Category } from '@/lib/models/Category';
 import { Page } from '@/lib/models/Page';
 import { logAdminAction } from '@/lib/models/AuditLog';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +29,9 @@ export async function POST(req: Request) {
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const parsed = parseCategoryWrite(await req.json());
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = parseCategoryWrite(bodyResult.data);
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
@@ -52,9 +56,14 @@ export async function POST(req: Request) {
     }
 
     const created = await Category.create(parsed.data);
-    await logAdminAction(auth.user.email, 'category_create', 'Category', created.slug, {
-      name: created.name,
-    });
+    await logAdminAction(
+      auth.user.email,
+      'category_create',
+      'Category',
+      created.slug,
+      { name: created.name },
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('categories');
     revalidateTag('products');

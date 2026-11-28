@@ -383,6 +383,14 @@ describe('Storefront & Order API integration (MongoMemoryServer)', () => {
     );
     expect(trackFail.status).toBe(404);
 
+    // Short 6-digit phone suffix must NOT match order tracking
+    const shortPhoneFail = await trackOrder(
+      new Request(`http://localhost/api/orders/track?orderNo=${orderNo}&contact=998877`, {
+        headers: { 'x-forwarded-for': nextIp() },
+      })
+    );
+    expect(shortPhoneFail.status).toBe(404);
+
     // 4. Unauthenticated admin call -> 401
     expect(isAdminRole(undefined)).toBe(false);
     expect(isAdminRole('customer')).toBe(false);
@@ -574,5 +582,73 @@ describe('Storefront & Order API integration (MongoMemoryServer)', () => {
     }
     expect(lastOrderRes?.status).toBe(429);
     expect(Number(lastOrderRes?.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1);
+  });
+
+  it('rejects invalid promo codes at checkout without charging full price, blocks duplicate-item qty bypass, and handles malformed JSON/ObjectIds cleanly', async () => {
+    // 1. Invalid discount code on POST /api/orders returns 400 and rolls back stock
+    const badPromoOrder = await createOrder(
+      jsonRequest('http://localhost/api/orders', 'POST', {
+        items: [{ productId: 'ring-1', stone: 'garnet', size: '7', qty: 1 }],
+        contact: { email: 'promo@example.com', phone: '03001234567' },
+        address: { name: 'Ali', line1: 'Street 1', city: 'Lahore', country: 'PK' },
+        payMethod: 'cod',
+        discountCode: 'INVALID99',
+      })
+    );
+    expect(badPromoOrder.status).toBe(400);
+    const ring1AfterPromoFail = await Product.findOne({ id: 'ring-1' }).lean();
+    expect(ring1AfterPromoFail?.variants.find((v) => v.stone === 'garnet' && v.size === '7')?.stock).toBe(3);
+
+    // 2. Duplicate line items summing > 10 rejected cleanly
+    const dupItemsOrder = await createOrder(
+      jsonRequest('http://localhost/api/orders', 'POST', {
+        items: [
+          { productId: 'ring-1', stone: 'garnet', size: '7', qty: 6 },
+          { productId: 'ring-1', stone: 'garnet', size: '7', qty: 6 },
+        ],
+        contact: { email: 'dup@example.com', phone: '03001234567' },
+        address: { name: 'Ali', line1: 'Street 1', city: 'Lahore', country: 'PK' },
+        payMethod: 'cod',
+      })
+    );
+    expect(dupItemsOrder.status).toBe(400);
+
+    // 3. Malformed JSON returns 400 instead of 500
+    const badJsonOrder = await createOrder(
+      new Request('http://localhost/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-forwarded-for': nextIp() },
+        body: '{not-valid-json',
+      })
+    );
+    expect(badJsonOrder.status).toBe(400);
+
+    // 4. Review on nonexistent product returns 404
+    const ghostReview = await createReview(
+      jsonRequest('http://localhost/api/reviews', 'POST', {
+        productId: 'nonexistent-ring',
+        name: 'Tester',
+        rating: 5,
+        comment: 'Should fail',
+      })
+    );
+    expect(ghostReview.status).toBe(404);
+
+    // 5. Admin inbox rejects invalid ObjectId with 400 and missing ObjectId with 404
+    mockSessionState.session = {
+      user: { id: 'a1', email: 'admin@gsscollection.pk', name: 'Admin', role: 'admin' },
+    };
+    const badInboxId = await patchAdminInbox(
+      jsonRequest('http://localhost', 'PATCH', { id: 'not-an-object-id', read: true })
+    );
+    expect(badInboxId.status).toBe(400);
+
+    const missingInboxId = await patchAdminInbox(
+      jsonRequest('http://localhost', 'PATCH', {
+        id: new mongoose.Types.ObjectId().toString(),
+        read: true,
+      })
+    );
+    expect(missingInboxId.status).toBe(404);
   });
 });

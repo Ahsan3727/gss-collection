@@ -1,4 +1,5 @@
 import { loadSettings } from '@/lib/settings';
+import { requireAdminPage } from '@/lib/admin-auth';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import SettingsClient from '@/components/admin/SettingsClient';
 import type { StoreSettingsData } from '@/lib/types';
@@ -6,6 +7,7 @@ import type { StoreSettingsData } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSettingsPage() {
+  await requireAdminPage();
   const settings: StoreSettingsData = await loadSettings();
 
   return (

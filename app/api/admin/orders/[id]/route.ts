@@ -7,6 +7,8 @@ import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
 import { restoreStock } from '@/lib/stock';
 import { AdminOrderPatchSchema } from '@/lib/schemas';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const auth = await requireAdminApi();
@@ -32,8 +34,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const rawBody: unknown = await req.json();
-    const parsed = AdminOrderPatchSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = AdminOrderPatchSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message || 'Invalid order update' },
@@ -61,6 +64,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       });
 
       if (fulfil === 'cancelled' && !order.restocked) {
+        let restoredItems = 0;
         for (const item of order.items) {
           const product = await Product.findOne(
             { id: item.productId },
@@ -68,14 +72,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           ).lean();
           if (!product) continue;
           const mode = product.variants && product.variants.length > 0 ? 'variant' : 'legacy';
-          await restoreStock(Product, product._id, mode, item.stone, item.size, item.qty);
-          if (product.handle) restockedHandles.add(product.handle);
+          const restored = await restoreStock(Product, product._id, mode, item.stone, item.size, item.qty);
+          if (restored) {
+            restoredItems += 1;
+            if (product.handle) restockedHandles.add(product.handle);
+          }
         }
-        order.restocked = true;
-        order.timeline.push({
-          at: new Date(),
-          text: `All ${order.items.length} item(s) returned to available stock inventory.`,
-        });
+        if (restoredItems === order.items.length) {
+          order.restocked = true;
+          order.timeline.push({
+            at: new Date(),
+            text: `All ${order.items.length} item(s) returned to available stock inventory.`,
+          });
+        } else {
+          order.timeline.push({
+            at: new Date(),
+            text: `Restocked ${restoredItems} of ${order.items.length} item(s); verify remaining deleted or edited variants manually.`,
+          });
+        }
       }
     }
 
@@ -107,11 +121,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     await order.save();
 
-    await logAdminAction(auth.user.email, 'order_update', 'Order', order.orderNo, {
-      fulfil: order.fulfil,
-      payStatus: order.payStatus,
-      previousFulfil,
-    });
+    await logAdminAction(
+      auth.user.email,
+      'order_update',
+      'Order',
+      order.orderNo,
+      {
+        fulfil: order.fulfil,
+        payStatus: order.payStatus,
+        previousFulfil,
+      },
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('orders');
     if (restockedHandles.size > 0) {

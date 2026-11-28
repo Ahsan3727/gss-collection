@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { unstable_cache } from 'next/cache';
 import { connectDB } from '@/lib/db';
+import { requireAdminPage } from '@/lib/admin-auth';
 import { Order } from '@/lib/models/Order';
 import { formatMoney } from '@/lib/money';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -95,6 +96,7 @@ function buildCustomersHref(opts: { q?: string; page?: number }) {
 }
 
 export default async function AdminCustomersPage({ searchParams }: CustomersPageProps) {
+  await requireAdminPage();
   const queryParam = (searchParams?.q || '').trim();
   const requestedPage = Math.max(1, parseInt(searchParams?.page || '1', 10) || 1);
 

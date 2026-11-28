@@ -13,10 +13,12 @@ import { CreateOrderInputSchema } from '@/lib/schemas';
 import { normalizeWhatsAppNumber } from '@/lib/contact';
 import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
 import { reportError } from '@/lib/monitoring';
+import { parseJsonBody } from '@/lib/http';
 
 export async function POST(req: Request) {
   const taken: StockTaken[] = [];
   let reservedDiscountId: unknown = null;
+  let requestedIdempotencyKey: string | undefined;
 
   try {
     const ip = clientIpFromRequest(req);
@@ -25,22 +27,27 @@ export async function POST(req: Request) {
       return rateLimitExceededResponse(ipLimit.reset, 'Too many order attempts. Please wait a few minutes.');
     }
 
-    const rawBody: unknown = await req.json();
-    const parseResult = CreateOrderInputSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
 
+    const parseResult = CreateOrderInputSchema.safeParse(bodyResult.data);
     if (!parseResult.success) {
       const firstError = parseResult.error.errors[0]?.message || 'Invalid order data';
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 
-    const { items, contact, address, payMethod, shippingMethodId, discountCode, note, idempotencyKey } =
+    const { items: rawItems, contact, address, payMethod, shippingMethodId, discountCode, note, idempotencyKey } =
       parseResult.data;
+    requestedIdempotencyKey = idempotencyKey;
 
     const normalizedPhone = normalizeWhatsAppNumber(contact.phone) || contact.phone.replace(/\D/g, '');
     if (normalizedPhone) {
       const phoneLimit = await rateLimit(`orders:phone:${normalizedPhone}`, 6, 600);
       if (!phoneLimit.success) {
-        return rateLimitExceededResponse(phoneLimit.reset, 'Multiple recent orders from this number. Please wait before trying again.');
+        return rateLimitExceededResponse(
+          phoneLimit.reset,
+          'Multiple recent orders from this number. Please wait before trying again.'
+        );
       }
     }
 
@@ -58,24 +65,59 @@ export async function POST(req: Request) {
       }
     }
 
-    const settings = await loadSettings();
+    // Merge identical (productId, stone, size) entries so each variant is deducted at most once.
+    const mergedMap = new Map<string, (typeof rawItems)[number]>();
+    for (const item of rawItems) {
+      const key = `${item.productId}::${item.stone}::${item.size}`;
+      const existing = mergedMap.get(key);
+      if (existing) {
+        existing.qty += item.qty;
+      } else {
+        mergedMap.set(key, { ...item });
+      }
+    }
+    const items = Array.from(mergedMap.values());
+
+    // Batch-fetch all candidate active products in a single query instead of N+1 round-trips.
+    const productIdentifiers = Array.from(
+      new Set(
+        items.flatMap((i) => [i.productId, i.handle].filter((v): v is string => Boolean(v && v.trim())))
+      )
+    );
+
+    const [settings, candidateProducts] = await Promise.all([
+      loadSettings(),
+      Product.find({
+        status: 'active',
+        $or: [{ id: { $in: productIdentifiers } }, { handle: { $in: productIdentifiers } }],
+      }).lean(),
+    ]);
+
+    const productByKey = new Map<string, (typeof candidateProducts)[number]>();
+    for (const p of candidateProducts) {
+      if (p.id) productByKey.set(p.id, p);
+      if (p.handle) productByKey.set(p.handle, p);
+    }
 
     let subtotal = 0;
     const verifiedItems = [];
     const affectedHandles = new Set<string>();
 
+    const abortOrder = async (message: string, status = 400) => {
+      await rollbackStock(Product, taken);
+      if (reservedDiscountId) {
+        await Discount.updateOne({ _id: reservedDiscountId, uses: { $gt: 0 } }, { $inc: { uses: -1 } }).catch(
+          () => undefined
+        );
+      }
+      return NextResponse.json({ error: message }, { status });
+    };
+
     for (const item of items) {
-      const p = await Product.findOne({
-        $or: [{ id: item.productId }, { handle: item.productId }, { handle: item.handle }],
-        status: 'active',
-      });
+      const p = productByKey.get(item.productId) || (item.handle ? productByKey.get(item.handle) : undefined);
 
       if (!p) {
-        await rollbackStock(Product, taken);
-        return NextResponse.json(
-          { error: `Product "${item.title || item.productId}" is not available.` },
-          { status: 400 }
-        );
+        return abortOrder(`Product "${item.title || item.productId}" is not available.`);
       }
 
       const stone = item.stone;
@@ -83,35 +125,23 @@ export async function POST(req: Request) {
       const source = resolveStockSource(p, stone, size);
 
       if (source.mode === 'unavailable') {
-        await rollbackStock(Product, taken);
-        return NextResponse.json(
-          {
-            error: `"${p.title}" is no longer available in ${stone}, Size ${size}. Please remove it from your bag.`,
-          },
-          { status: 400 }
+        return abortOrder(
+          `"${p.title}" is no longer available in ${stone}, Size ${size}. Please remove it from your bag.`
         );
       }
 
       const { sku, unitPrice } = source;
 
       if (source.stock < item.qty) {
-        await rollbackStock(Product, taken);
-        return NextResponse.json(
-          {
-            error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Only ${source.stock} remaining.`,
-          },
-          { status: 400 }
+        return abortOrder(
+          `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Only ${source.stock} remaining.`
         );
       }
 
       const ok = await takeStock(Product, p._id, source.mode, stone, size, item.qty);
       if (!ok) {
-        await rollbackStock(Product, taken);
-        return NextResponse.json(
-          {
-            error: `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Someone else just bought it.`,
-          },
-          { status: 400 }
+        return abortOrder(
+          `Insufficient stock for "${p.title}" (${stone}, Size ${size}). Someone else just bought it.`
         );
       }
 
@@ -138,32 +168,39 @@ export async function POST(req: Request) {
     let appliedDiscountCode: string | undefined;
     let freeShippingFromPromo = false;
 
-    if (discountCode && discountCode.trim()) {
+    const cleanDiscountCode = discountCode?.trim().toUpperCase();
+    if (cleanDiscountCode) {
       const disc = await Discount.findOne({
-        code: discountCode.trim().toUpperCase(),
+        code: cleanDiscountCode,
         active: true,
       });
 
-      if (disc) {
-        const calc = computeDiscount(disc, subtotal, baseShipping.price);
-        if (calc.valid) {
-          const claimed = await Discount.findOneAndUpdate(
-            {
-              _id: disc._id,
-              active: true,
-              $or: [{ limit: 0 }, { $expr: { $lt: ['$uses', '$limit'] } }],
-            },
-            { $inc: { uses: 1 } },
-            { new: true }
-          );
-          if (claimed) {
-            reservedDiscountId = claimed._id;
-            discountAmount = calc.freeShipping ? 0 : calc.amount;
-            freeShippingFromPromo = calc.freeShipping;
-            appliedDiscountCode = calc.code;
-          }
-        }
+      if (!disc) {
+        return abortOrder('Invalid or expired promotional code');
       }
+
+      const calc = computeDiscount(disc, subtotal, baseShipping.price);
+      if (!calc.valid) {
+        return abortOrder(calc.reason);
+      }
+
+      const claimed = await Discount.findOneAndUpdate(
+        {
+          _id: disc._id,
+          active: true,
+          $or: [{ limit: 0 }, { $expr: { $lt: ['$uses', '$limit'] } }],
+        },
+        { $inc: { uses: 1 } },
+        { new: true }
+      );
+      if (!claimed) {
+        return abortOrder('This discount code has reached its usage limit');
+      }
+
+      reservedDiscountId = claimed._id;
+      discountAmount = calc.freeShipping ? 0 : calc.amount;
+      freeShippingFromPromo = calc.freeShipping;
+      appliedDiscountCode = calc.code;
     }
 
     const finalShipping = resolveShippingOption(
@@ -222,6 +259,22 @@ export async function POST(req: Request) {
         () => undefined
       );
     }
+
+    const mongoErr = err as { code?: number; keyPattern?: Record<string, unknown> };
+    if (requestedIdempotencyKey && mongoErr?.code === 11000) {
+      const existing = await Order.findOne({ idempotencyKey: requestedIdempotencyKey })
+        .lean()
+        .catch(() => null);
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          orderNo: existing.orderNo,
+          accessToken: existing.accessToken,
+          message: 'Existing order retrieved',
+        });
+      }
+    }
+
     await reportError(err, { area: 'checkout', route: '/api/orders', level: 'fatal' });
     return NextResponse.json(
       { error: 'An unexpected error occurred while placing your order. Please retry.' },

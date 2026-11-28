@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { connectDB } from '@/lib/db';
 import { Message } from '@/lib/models/Message';
 import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
+import { parseJsonBody } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,9 @@ export async function POST(req: Request) {
       return rateLimitExceededResponse(limit.reset, 'Too many messages sent recently. Please try later.');
     }
 
-    const body: unknown = await req.json();
-    const parsed = contactSchema.safeParse(body);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = contactSchema.safeParse(bodyResult.data);
 
     if (!parsed.success) {
       return NextResponse.json(

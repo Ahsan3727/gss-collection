@@ -10,7 +10,7 @@ const envSchema = z.object({
   NEXTAUTH_SECRET: z.string().min(16, 'NEXTAUTH_SECRET must be at least 16 characters'),
   NEXTAUTH_URL: z.string().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
-  ADMIN_EMAIL: z.string().email('ADMIN_EMAIL must be a valid email'),
+  ADMIN_EMAIL: z.string().email('ADMIN_EMAIL must be a valid email').optional(),
   ADMIN_PASSWORD: z.string().min(6, 'ADMIN_PASSWORD must be at least 6 characters').optional(),
   NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_CLOUD_NAME: z.string().min(1, 'CLOUDINARY_CLOUD_NAME is required'),
@@ -33,7 +33,7 @@ export function getEnv(): AppEnv {
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || vercelUrl,
     NEXT_PUBLIC_SITE_URL: siteUrlRaw || undefined,
-    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+    ADMIN_EMAIL: process.env.ADMIN_EMAIL?.trim() || undefined,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || undefined,
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || undefined,
     CLOUDINARY_CLOUD_NAME:

@@ -7,6 +7,8 @@ import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
 import { DEFAULT_HERO } from '@/lib/settings';
 import { HeroSettingsSchema } from '@/lib/types';
+import { parseJsonBody } from '@/lib/http';
+import { clientIpFromRequest } from '@/lib/ratelimit';
 
 const settingsPatchSchema = z.object({
   storeName: z.string().min(1).max(120).optional(),
@@ -50,8 +52,9 @@ export async function PATCH(req: Request) {
   if ('errorResponse' in auth) return auth.errorResponse;
 
   try {
-    const rawBody: unknown = await req.json();
-    const parsed = settingsPatchSchema.safeParse(rawBody);
+    const bodyResult = await parseJsonBody(req);
+    if ('errorResponse' in bodyResult) return bodyResult.errorResponse;
+    const parsed = settingsPatchSchema.safeParse(bodyResult.data);
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message || 'Invalid settings data' },
@@ -88,7 +91,14 @@ export async function PATCH(req: Request) {
     }
 
     await settings.save();
-    await logAdminAction(auth.user.email, 'settings_update', 'Settings', 'singleton', body);
+    await logAdminAction(
+      auth.user.email,
+      'settings_update',
+      'Settings',
+      'singleton',
+      body,
+      clientIpFromRequest(req)
+    );
 
     revalidateTag('settings');
     revalidatePath('/');

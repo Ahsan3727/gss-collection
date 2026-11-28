@@ -2,12 +2,28 @@ import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { getEnv } from '@/lib/env';
+import { logAdminAction } from '@/lib/models/AuditLog';
+import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+]);
 
 export async function POST(req: Request) {
   const auth = await requireAdminApi();
   if ('errorResponse' in auth) return auth.errorResponse;
+
+  const ip = clientIpFromRequest(req);
+  const limit = await rateLimit(`upload:${ip}`, 30, 60);
+  if (!limit.success) {
+    return rateLimitExceededResponse(limit.reset);
+  }
 
   let cloudName = '';
   let apiKey = '';
@@ -40,8 +56,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: 'Only image files can be uploaded' }, { status: 400 });
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      return NextResponse.json(
+        { error: 'Only JPEG, PNG, WebP, AVIF, or GIF images can be uploaded' },
+        { status: 400 }
+      );
     }
 
     if (file.size > 8 * 1024 * 1024) {
@@ -55,6 +74,7 @@ export async function POST(req: Request) {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder,
+          allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'gif'],
           transformation: [{ quality: 'auto', fetch_format: 'auto' }],
         },
         (error, result) => {
@@ -66,6 +86,14 @@ export async function POST(req: Request) {
     });
 
     const result = await uploadPromise;
+    await logAdminAction(
+      auth.user.email,
+      'upload_image',
+      'Media',
+      result.public_id,
+      { folder },
+      ip
+    );
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Product } from '@/lib/models/Product';
+import { clientIpFromRequest, rateLimit, rateLimitExceededResponse } from '@/lib/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,12 @@ function escapeRegex(text: string): string {
 
 export async function GET(req: Request) {
   try {
+    const ip = clientIpFromRequest(req);
+    const limit = await rateLimit(`search:${ip}`, 60, 60);
+    if (!limit.success) {
+      return rateLimitExceededResponse(limit.reset);
+    }
+
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get('q') || '').trim();
 
