@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import dynamic from 'next/dynamic';
-import { Inter, Cormorant_Garamond } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import Footer from '@/components/store/Footer';
 import { StoreFooterShell, StoreHeaderShell } from '@/components/store/StoreShell';
@@ -16,18 +16,20 @@ const CartDrawer = dynamic(() => import('@/components/store/CartDrawer'), {
   ssr: false,
 });
 
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const inter = localFont({
+  src: './fonts/inter-latin.woff2',
+  weight: '400 700',
   variable: '--font-inter',
   display: 'swap',
+  adjustFontFallback: 'Arial',
 });
 
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const cormorant = localFont({
+  src: './fonts/cormorant-garamond-latin.woff2',
+  weight: '400 600',
   variable: '--font-display',
   display: 'swap',
+  adjustFontFallback: 'Times New Roman',
 });
 
 const siteUrl = getSiteUrl();
