@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireAdminPage } from '@/lib/admin-auth';
 import { loadCategories } from '@/lib/categories';
+import { loadSettings } from '@/lib/settings';
 import ProductForm from '@/components/admin/ProductForm';
 
 export const dynamic = 'force-dynamic';
@@ -11,12 +12,17 @@ export default async function AdminNewProductPage({
   searchParams?: { cat?: string };
 }) {
   await requireAdminPage();
-  const categories = (await loadCategories(true)).filter((c) => c.targetType !== 'page');
-  const categoryOptions = categories.map((c) => ({
-    slug: c.slug,
-    name: c.name,
-    defaultKind: c.defaultKind,
-  }));
+  const [categories, settings] = await Promise.all([
+    loadCategories(true),
+    loadSettings(),
+  ]);
+  const categoryOptions = categories
+    .filter((c) => c.targetType !== 'page')
+    .map((c) => ({
+      slug: c.slug,
+      name: c.name,
+      defaultKind: c.defaultKind,
+    }));
 
   return (
     <div className="max-w-site mx-auto px-4 md:px-6 py-10">
@@ -34,6 +40,7 @@ export default async function AdminNewProductPage({
         mode="create"
         categories={categoryOptions}
         initialCat={searchParams?.cat?.toLowerCase().trim()}
+        ringSizes={settings.ringSizes}
       />
     </div>
   );

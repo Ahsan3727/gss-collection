@@ -380,6 +380,68 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await page.getByRole('button', { name: /^Delete$/i }).click();
     await page.getByRole('button', { name: /Delete Category/i }).click();
     await expect(page.getByText(/Category deleted/i)).toBeVisible();
+
+    // 8. Admin edits Size Guide photos + Ladies/Gents ring sizes -> renders live on /pages/size-guide & product modal
+    await page.goto('/admin/pages');
+    await assertNoHorizontalOverflow(page, '/admin/pages');
+    await page.getByRole('button', { name: /Ring Siz(?:e|ing) Guide/i }).click();
+
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          url: '/images/products/crimson-halo-ring-0.jpg',
+        }),
+      });
+    });
+
+    await page.locator('#pg-photo-upload').setInputFiles({
+      name: 'size-chart.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    });
+    await expect(page.locator('#pg-img-cap-0')).toBeVisible();
+    await page.locator('#pg-img-cap-0').fill('Ruler measurement example');
+    await page.unroute('**/api/upload');
+
+    // Add size 13 to Gents Rings chart inside Size Guide editor
+    const addBtns = page.getByRole('button', { name: /\+ Add Size/i });
+    await addBtns.nth(1).click();
+    const gentsRows = page.locator('input[id^="sz-gents-label-"]');
+    const lastIdx = (await gentsRows.count()) - 1;
+    await page.locator(`#sz-gents-label-${lastIdx}`).fill('13');
+    await page.locator(`#sz-gents-diam-${lastIdx}`).fill('22.2');
+    await page.getByRole('button', { name: /Save changes/i }).click();
+    await expect(page.getByText(/Changes saved/i)).toBeVisible();
+
+    await page.goto('/pages/size-guide');
+    await expect(page.getByText('Ruler measurement example')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Ladies Rings Sizing/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Gents Rings Sizing/i })).toBeVisible();
+    await expect(page.getByRole('cell', { name: '13', exact: true })).toBeVisible();
+    await assertNoHorizontalOverflow(page, '/pages/size-guide');
+    await assertNoAxeViolations(page, '/pages/size-guide');
+
+    // Product Size Guide modal picks up updated Gents chart & uploaded visual
+    await page.goto('/products/crimson-halo-ring');
+    await page.getByRole('button', { name: /^Size Guide$/i }).click();
+    const modal = page.getByRole('dialog');
+    await expect(modal).toBeVisible();
+    await expect(modal.getByRole('tab', { name: /Ladies Rings/i })).toHaveAttribute('aria-selected', 'true');
+    await modal.getByRole('tab', { name: /Gents Rings/i }).click();
+    await expect(modal.getByRole('cell', { name: '13', exact: true })).toBeVisible();
+    await expect(modal.getByText('Ruler measurement example')).toBeVisible();
+    await modal.getByRole('button', { name: /Close size guide/i }).first().click();
+
+    // Clean up temporary photo & size 13 row so subsequent browser runs start fresh
+    await page.goto('/admin/pages');
+    await page.getByRole('button', { name: /Ring Siz(?:e|ing) Guide/i }).click();
+    await page.getByRole('button', { name: /^Remove$/i }).first().click();
+    await page.getByRole('button', { name: /Remove size row/i }).last().click();
+    await page.getByRole('button', { name: /Save changes/i }).click();
+    await expect(page.getByText(/Changes saved/i)).toBeVisible();
   });
 
   test('zero horizontal overflow and WCAG AA axe compliance across all storefront routes', async ({ page }) => {

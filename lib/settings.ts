@@ -1,9 +1,9 @@
 import { unstable_cache } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Settings } from '@/lib/models/Settings';
-import { DEFAULT_HERO, type StoreSettingsData } from '@/lib/types';
+import { DEFAULT_HERO, DEFAULT_RING_SIZES, type StoreSettingsData } from '@/lib/types';
 
-export { DEFAULT_HERO };
+export { DEFAULT_HERO, DEFAULT_RING_SIZES };
 
 export const DEFAULT_SETTINGS: StoreSettingsData = {
   storeName: 'GSS Collection',
@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: StoreSettingsData = {
     accountNumber: '',
   },
   hero: DEFAULT_HERO,
+  ringSizes: DEFAULT_RING_SIZES,
   spotlightId: 'crimson-halo-ring',
   moderateReviews: false,
 };
@@ -53,6 +54,7 @@ export async function loadSettings(): Promise<StoreSettingsData> {
   if (!doc) return DEFAULT_SETTINGS;
   const serialized = JSON.parse(JSON.stringify(doc)) as Partial<StoreSettingsData>;
   const rawHero = serialized.hero;
+  const rawSizes = serialized.ringSizes;
   return {
     ...DEFAULT_SETTINGS,
     ...serialized,
@@ -66,6 +68,12 @@ export async function loadSettings(): Promise<StoreSettingsData> {
       imageUrl: rawHero?.imageUrl ?? DEFAULT_HERO.imageUrl,
       imageAlt: rawHero?.imageAlt ?? DEFAULT_HERO.imageAlt,
       linkHref: rawHero?.linkHref?.trim() ? rawHero.linkHref : DEFAULT_HERO.linkHref,
+    },
+    ringSizes: {
+      ladies: rawSizes?.ladies?.length ? rawSizes.ladies : DEFAULT_RING_SIZES.ladies,
+      gents: rawSizes?.gents?.length ? rawSizes.gents : DEFAULT_RING_SIZES.gents,
+      fitTip:
+        typeof rawSizes?.fitTip === 'string' ? rawSizes.fitTip : DEFAULT_RING_SIZES.fitTip,
     },
     shipping: {
       pk: serialized.shipping?.pk?.length ? serialized.shipping.pk : DEFAULT_SETTINGS.shipping.pk,

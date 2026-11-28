@@ -37,6 +37,7 @@ import {
   DELETE as deleteCategory,
 } from '@/app/api/admin/categories/[slug]/route';
 import { PATCH as patchReview, DELETE as deleteReview } from '@/app/api/reviews/[id]/route';
+import { PATCH as patchAdminSettings } from '@/app/api/admin/settings/route';
 import { POST as changeAdminPassword } from '@/app/api/admin/password/route';
 import { POST as postVitals } from '@/app/api/vitals/route';
 import {
@@ -50,7 +51,7 @@ import {
   isValidCollectionHandle,
 } from '@/lib/catalogue';
 import { authOptions } from '@/lib/auth';
-import { getStoreSettings } from '@/lib/settings';
+import { DEFAULT_RING_SIZES, getStoreSettings, loadSettings } from '@/lib/settings';
 import { buildVariantSku } from '@/lib/pricing';
 
 let mongod: MongoMemoryServer;
@@ -673,5 +674,72 @@ describe('Products, Inventory, Pages, Reviews, Vitals, Catalogue & Auth', () => 
       { headers: { 'x-forwarded-for': '10.20.30.51' } }
     );
     expect(relogin).toMatchObject({ email: 'admin@gsscollection.pk', role: 'superadmin' });
+  });
+
+  it('persists page guide images and separate Ladies & Gents ring size charts', async () => {
+    mockSessionState.session = {
+      user: { id: 'a1', email: 'admin@gsscollection.pk', name: 'Admin', role: 'admin' },
+    };
+
+    const badImgPage = await createPage(
+      jsonReq('http://localhost/api/admin/pages', 'POST', {
+        slug: 'bad-guide',
+        title: 'Bad Guide',
+        body: 'Unsafe image url test.',
+        images: [{ url: 'https://evil.example/img.jpg', caption: 'Bad' }],
+      })
+    );
+    expect(badImgPage.status).toBe(400);
+
+    const createGuideRes = await createPage(
+      jsonReq('http://localhost/api/admin/pages', 'POST', {
+        slug: 'size-guide',
+        title: 'Ring Size Guide',
+        body: 'Measure your ring diameter carefully.',
+        images: [{ url: '/images/products/crimson-halo-ring-0.jpg', caption: 'Ruler Diameter Method' }],
+      })
+    );
+    expect(createGuideRes.status).toBe(201);
+
+    const fetchedGuide = await getStaticPageBySlug('size-guide');
+    expect(fetchedGuide?.images).toEqual([
+      { url: '/images/products/crimson-halo-ring-0.jpg', caption: 'Ruler Diameter Method' },
+    ]);
+
+    const duplicateSizeRes = await patchAdminSettings(
+      jsonReq('http://localhost/api/admin/settings', 'PATCH', {
+        ringSizes: {
+          ladies: DEFAULT_RING_SIZES.ladies,
+          gents: [
+            { size: '10', diameterMm: 19.8, circumferenceMm: 62.2, note: '' },
+            { size: '10', diameterMm: 20.0, circumferenceMm: 62.8, note: '' },
+          ],
+          fitTip: 'Measure warm fingers.',
+        },
+      })
+    );
+    expect(duplicateSizeRes.status).toBe(400);
+
+    const validSizeRes = await patchAdminSettings(
+      jsonReq('http://localhost/api/admin/settings', 'PATCH', {
+        ringSizes: {
+          ladies: [
+            { size: '5', diameterMm: 15.7, circumferenceMm: 49.3, note: 'Petite' },
+            { size: '6', diameterMm: 16.5, circumferenceMm: 51.9, note: 'Most Popular' },
+          ],
+          gents: [
+            { size: '9', diameterMm: 19.0, circumferenceMm: 59.7, note: 'Standard' },
+            { size: '13', diameterMm: 22.2, circumferenceMm: 69.7, note: 'Broad Band' },
+          ],
+          fitTip: 'Choose half size up for broad Signet bands.',
+        },
+      })
+    );
+    expect(validSizeRes.status).toBe(200);
+
+    const settings = await loadSettings();
+    expect(settings.ringSizes?.ladies.map((r) => r.size)).toEqual(['5', '6']);
+    expect(settings.ringSizes?.gents.map((r) => r.size)).toEqual(['9', '13']);
+    expect(settings.ringSizes?.fitTip).toBe('Choose half size up for broad Signet bands.');
   });
 });

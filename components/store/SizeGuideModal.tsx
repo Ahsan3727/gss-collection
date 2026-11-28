@@ -1,13 +1,37 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import * as Dialog from '@radix-ui/react-dialog';
+import { DEFAULT_RING_SIZES, type PageImage, type RingSizesConfig } from '@/lib/types';
+import RingSizeTable from '@/components/store/RingSizeTable';
 
 interface SizeGuideModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  ringSizes?: RingSizesConfig;
+  guideImages?: PageImage[];
+  defaultAudience?: 'ladies' | 'gents';
 }
 
-export default function SizeGuideModal({ open, onOpenChange }: SizeGuideModalProps) {
+export default function SizeGuideModal({
+  open,
+  onOpenChange,
+  ringSizes = DEFAULT_RING_SIZES,
+  guideImages = [],
+  defaultAudience = 'ladies',
+}: SizeGuideModalProps) {
+  const [audience, setAudience] = useState<'ladies' | 'gents'>(defaultAudience);
+
+  useEffect(() => {
+    if (open) {
+      setAudience(defaultAudience);
+    }
+  }, [open, defaultAudience]);
+
+  const rows = audience === 'gents' ? ringSizes.gents : ringSizes.ladies;
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -22,7 +46,7 @@ export default function SizeGuideModal({ open, onOpenChange }: SizeGuideModalPro
                 GSS Ring Sizing
               </span>
               <Dialog.Title className="font-display text-2xl text-ink font-normal">
-                Ring Size Chart (US Standard)
+                Ring Size Chart
               </Dialog.Title>
             </div>
             <Dialog.Close asChild>
@@ -36,31 +60,71 @@ export default function SizeGuideModal({ open, onOpenChange }: SizeGuideModalPro
             </Dialog.Close>
           </div>
 
-          <div className="overflow-x-auto text-xs text-left mb-5">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-line bg-ground text-ink uppercase tracking-wider text-xs">
-                  <th className="py-2.5 px-3 font-semibold">US Size</th>
-                  <th className="py-2.5 px-3 font-semibold">Diameter (mm)</th>
-                  <th className="py-2.5 px-3 font-semibold">Circumference (mm)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line text-ink-2">
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">5</td><td className="py-2.5 px-3">15.7 mm</td><td className="py-2.5 px-3">49.3 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">6</td><td className="py-2.5 px-3">16.5 mm</td><td className="py-2.5 px-3">51.8 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">7</td><td className="py-2.5 px-3">17.3 mm</td><td className="py-2.5 px-3">54.4 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">8</td><td className="py-2.5 px-3">18.1 mm</td><td className="py-2.5 px-3">56.9 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">9</td><td className="py-2.5 px-3">18.9 mm</td><td className="py-2.5 px-3">59.5 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">10</td><td className="py-2.5 px-3">19.8 mm</td><td className="py-2.5 px-3">62.1 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">11</td><td className="py-2.5 px-3">20.6 mm</td><td className="py-2.5 px-3">64.6 mm</td></tr>
-                <tr><td className="py-2.5 px-3 font-semibold text-ink">12</td><td className="py-2.5 px-3">21.4 mm</td><td className="py-2.5 px-3">67.2 mm</td></tr>
-              </tbody>
-            </table>
+          <div role="tablist" aria-label="Ring size category" className="grid grid-cols-2 gap-2 mb-4">
+            {(['ladies', 'gents'] as const).map((tab) => {
+              const selected = audience === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setAudience(tab)}
+                  className={`min-h-[44px] text-xs uppercase tracking-wider font-semibold border transition ${
+                    selected
+                      ? 'bg-ink text-white border-ink'
+                      : 'bg-ground text-ink-2 border-line hover:text-ink'
+                  }`}
+                >
+                  {tab === 'ladies' ? 'Ladies Rings' : 'Gents Rings'}
+                </button>
+              );
+            })}
           </div>
 
-          <p id="size-guide-tip" className="text-xs text-ink-2 leading-relaxed mb-6">
-            Tip: If you fall between sizes, we recommend selecting the larger size for wider bands.
+          <RingSizeTable
+            rows={rows}
+            compact
+            className="mb-4 border border-line"
+            ariaLabel={audience === 'gents' ? 'Gents rings sizing table' : 'Ladies rings sizing table'}
+          />
+
+          {guideImages.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {guideImages.slice(0, 2).map((img, idx) => (
+                <figure key={`${img.url}-${idx}`} className="border border-line bg-mist p-2">
+                  <div className="relative aspect-[4/3] w-full bg-white overflow-hidden">
+                    <Image
+                      src={img.url}
+                      alt={img.caption || `Sizing guide image ${idx + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 90vw, 220px"
+                      className="object-contain"
+                    />
+                  </div>
+                  {img.caption && (
+                    <figcaption className="pt-1.5 text-xs text-ink-2 text-center line-clamp-1">
+                      {img.caption}
+                    </figcaption>
+                  )}
+                </figure>
+              ))}
+            </div>
+          )}
+
+          <p id="size-guide-tip" className="text-xs text-ink-2 leading-relaxed mb-4">
+            {ringSizes.fitTip || DEFAULT_RING_SIZES.fitTip}
           </p>
+
+          <div className="mb-4 text-center">
+            <Link
+              href="/pages/size-guide"
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center min-h-[44px] text-xs uppercase tracking-wider font-semibold text-ink underline hover:text-ink-2"
+            >
+              Open Full Size Guide &amp; Visuals →
+            </Link>
+          </div>
 
           <Dialog.Close asChild>
             <button

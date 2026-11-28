@@ -59,6 +59,9 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
     page.title = parsed.data.title;
     page.body = parsed.data.body;
     page.metaDesc = parsed.data.metaDesc;
+    if (parsed.data.images !== undefined) {
+      page.images = parsed.data.images;
+    }
     await page.save();
 
     if (page.slug !== previousSlug) {
@@ -80,6 +83,9 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
     revalidateTag(`page:${page.slug}`);
     revalidatePath('/', 'layout');
     revalidatePath('/');
+    revalidatePath(`/pages/${previousSlug}`);
+    revalidatePath(`/pages/${page.slug}`);
+    revalidatePath('/products', 'layout');
     revalidatePath('/sitemap.xml');
 
     return NextResponse.json({ success: true, page: JSON.parse(JSON.stringify(page)) });

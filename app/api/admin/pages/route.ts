@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { connectDB } from '@/lib/db';
 import { Page } from '@/lib/models/Page';
 import { requireAdminApi } from '@/lib/admin-auth';
@@ -54,6 +54,9 @@ export async function POST(req: Request) {
 
     revalidateTag('pages');
     revalidateTag(`page:${page.slug}`);
+    revalidatePath(`/pages/${page.slug}`);
+    revalidatePath('/products', 'layout');
+    revalidatePath('/sitemap.xml');
 
     return NextResponse.json({ success: true, page: JSON.parse(JSON.stringify(page)) }, { status: 201 });
   } catch (err: unknown) {

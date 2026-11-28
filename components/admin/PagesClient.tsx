@@ -2,26 +2,30 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
+import { uploadAdminImage } from '@/lib/client-image';
+import {
+  DEFAULT_RING_SIZES,
+  RING_SIZE_LIMITS,
+  type PageImage,
+  type PageRecord,
+  type RingSizeEntry,
+  type RingSizesConfig,
+} from '@/lib/types';
 
-export interface PageRecord {
-  _id?: string;
-  slug: string;
-  title: string;
-  body: string;
-  metaDesc?: string;
-  updatedAt?: string;
-}
+export type { PageRecord };
 
 interface FormValues {
   slug: string;
   title: string;
   body: string;
   metaDesc: string;
+  images: PageImage[];
 }
 
 // Same limits as parsePageWrite() in lib/page-write.ts.
 const TITLE_MAX = 160;
 const BODY_MAX = 20000;
+const MAX_PAGE_IMAGES = 8;
 // Not enforced anywhere. Search engines cut descriptions at about this length.
 const META_SOFT_MAX = 160;
 
@@ -42,7 +46,7 @@ const inputClass =
 const cardClass = 'bg-white border border-line shadow-sm';
 const cardTitleClass = 'font-display text-xl font-normal text-ink';
 
-const BLANK: FormValues = { slug: '', title: '', body: '', metaDesc: '' };
+const BLANK: FormValues = { slug: '', title: '', body: '', metaDesc: '', images: [] };
 
 // Same rule as slugifyHandle() on the server.
 function slugify(value: string) {
@@ -73,7 +77,173 @@ function toValues(page: PageRecord): FormValues {
     title: page.title,
     body: page.body,
     metaDesc: page.metaDesc || '',
+    images: Array.isArray(page.images) ? page.images.map((img) => ({ ...img })) : [],
   };
+}
+
+function normalizeRingSizes(config?: RingSizesConfig): RingSizesConfig {
+  const source = config || DEFAULT_RING_SIZES;
+  return {
+    ladies: (source.ladies?.length ? source.ladies : DEFAULT_RING_SIZES.ladies).map((row) => ({
+      size: row.size,
+      diameterMm: row.diameterMm,
+      circumferenceMm: row.circumferenceMm,
+      note: row.note || '',
+    })),
+    gents: (source.gents?.length ? source.gents : DEFAULT_RING_SIZES.gents).map((row) => ({
+      size: row.size,
+      diameterMm: row.diameterMm,
+      circumferenceMm: row.circumferenceMm,
+      note: row.note || '',
+    })),
+    fitTip: typeof source.fitTip === 'string' ? source.fitTip : DEFAULT_RING_SIZES.fitTip,
+  };
+}
+
+function RingSizeTableEditor({
+  heading,
+  groupKey,
+  rows,
+  onChange,
+}: {
+  heading: string;
+  groupKey: 'ladies' | 'gents';
+  rows: RingSizeEntry[];
+  onChange: (next: RingSizeEntry[]) => void;
+}) {
+  const updateRow = (index: number, patch: Partial<RingSizeEntry>) => {
+    const next = rows.map((row, idx) => (idx === index ? { ...row, ...patch } : row));
+    onChange(next);
+  };
+
+  const addRow = () => {
+    if (rows.length >= RING_SIZE_LIMITS.maxEntriesPerChart) return;
+    onChange([...rows, { size: '', diameterMm: 17.3, circumferenceMm: 54.4, note: '' }]);
+  };
+
+  const removeRow = (index: number) => {
+    if (rows.length <= 1) return;
+    onChange(rows.filter((_, idx) => idx !== index));
+  };
+
+  return (
+    <div className="border border-line bg-ground p-3.5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="uppercase tracking-wider font-semibold text-ink">{heading}</span>
+        <button
+          type="button"
+          onClick={addRow}
+          disabled={rows.length >= RING_SIZE_LIMITS.maxEntriesPerChart}
+          className="px-3 min-h-[44px] border border-ink text-ink bg-white hover:bg-ink hover:text-white uppercase tracking-wider font-semibold disabled:opacity-40 transition"
+        >
+          + Add Size
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map((row, idx) => (
+          <div
+            key={`${groupKey}-${idx}`}
+            className="grid grid-cols-2 sm:grid-cols-12 gap-2 bg-white border border-line p-2.5 items-end"
+          >
+            <div className="sm:col-span-2 min-w-0">
+              <label
+                htmlFor={`sz-${groupKey}-label-${idx}`}
+                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+              >
+                Size *
+              </label>
+              <input
+                id={`sz-${groupKey}-label-${idx}`}
+                type="text"
+                maxLength={RING_SIZE_LIMITS.sizeMax}
+                value={row.size}
+                onChange={(e) => updateRow(idx, { size: e.target.value })}
+                placeholder="e.g. 7"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="sm:col-span-3 min-w-0">
+              <label
+                htmlFor={`sz-${groupKey}-diam-${idx}`}
+                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+              >
+                Diameter (mm)
+              </label>
+              <input
+                id={`sz-${groupKey}-diam-${idx}`}
+                type="number"
+                step="0.1"
+                min="5"
+                max="40"
+                value={row.diameterMm}
+                onChange={(e) => {
+                  const diameter = Number(e.target.value);
+                  updateRow(idx, {
+                    diameterMm: diameter,
+                    ...(Number.isFinite(diameter) && diameter > 0
+                      ? { circumferenceMm: Number((diameter * Math.PI).toFixed(1)) }
+                      : {}),
+                  });
+                }}
+                className={inputClass}
+              />
+            </div>
+
+            <div className="sm:col-span-3 min-w-0">
+              <label
+                htmlFor={`sz-${groupKey}-circ-${idx}`}
+                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+              >
+                Circumf. (mm)
+              </label>
+              <input
+                id={`sz-${groupKey}-circ-${idx}`}
+                type="number"
+                step="0.1"
+                min="15"
+                max="120"
+                value={row.circumferenceMm}
+                onChange={(e) => updateRow(idx, { circumferenceMm: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </div>
+
+            <div className="col-span-2 sm:col-span-3 min-w-0">
+              <label
+                htmlFor={`sz-${groupKey}-note-${idx}`}
+                className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+              >
+                Note
+              </label>
+              <input
+                id={`sz-${groupKey}-note-${idx}`}
+                type="text"
+                maxLength={RING_SIZE_LIMITS.noteMax}
+                value={row.note || ''}
+                onChange={(e) => updateRow(idx, { note: e.target.value })}
+                placeholder="Optional"
+                className={inputClass}
+              />
+            </div>
+
+            <div className="col-span-2 sm:col-span-1 flex justify-end">
+              <button
+                type="button"
+                onClick={() => removeRow(idx)}
+                disabled={rows.length <= 1}
+                aria-label={`Remove size row ${idx + 1}`}
+                className="min-w-[44px] min-h-[44px] border border-line text-red-700 hover:border-red-700 disabled:opacity-30 font-semibold"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function sortPages(pages: PageRecord[]) {
@@ -100,16 +270,29 @@ function footerLabelFor(slug: string) {
   return Object.prototype.hasOwnProperty.call(FOOTER_LINKS, slug) ? FOOTER_LINKS[slug] : undefined;
 }
 
-export default function PagesClient({ initialPages }: { initialPages: PageRecord[] }) {
+export default function PagesClient({
+  initialPages,
+  initialRingSizes = DEFAULT_RING_SIZES,
+}: {
+  initialPages: PageRecord[];
+  initialRingSizes?: RingSizesConfig;
+}) {
   const [pages, setPages] = useState<PageRecord[]>(() => sortPages(initialPages));
   // mode says what the editor shows; activeSlug is the saved slug of the page being edited (mode 'edit' only).
-  const [mode, setMode] = useState<Mode>('none');
+  const [mode, setMode] = useState<'none' | 'new' | 'edit'>('none');
   const [activeSlug, setActiveSlug] = useState('');
   const [values, setValues] = useState<FormValues>(BLANK);
   const [saved, setSaved] = useState<FormValues>(BLANK);
+  const [ringSizes, setRingSizes] = useState<RingSizesConfig>(() =>
+    normalizeRingSizes(initialRingSizes)
+  );
+  const [savedRingSizes, setSavedRingSizes] = useState<RingSizesConfig>(() =>
+    normalizeRingSizes(initialRingSizes)
+  );
   const [slugTouched, setSlugTouched] = useState(false);
   const [slugLocked, setSlugLocked] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
@@ -117,13 +300,19 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
 
   const isNew = mode === 'new';
   const isEdit = mode === 'edit';
+  const effectiveSlug = slugify(values.slug || values.title);
+  const isSizeGuideEditor = activeSlug === 'size-guide' || effectiveSlug === 'size-guide';
+  const sizesDirty =
+    isSizeGuideEditor && JSON.stringify(ringSizes) !== JSON.stringify(savedRingSizes);
 
   const dirty =
     mode !== 'none' &&
     (values.slug !== saved.slug ||
       values.title !== saved.title ||
       values.body !== saved.body ||
-      values.metaDesc !== saved.metaDesc);
+      values.metaDesc !== saved.metaDesc ||
+      JSON.stringify(values.images) !== JSON.stringify(saved.images) ||
+      sizesDirty);
 
   // Browser prompt if the tab is closed or reloaded with edits that were not saved.
   useEffect(() => {
@@ -226,6 +415,7 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
       destructive: true,
       onConfirm: () => {
         setValues(saved);
+        setRingSizes(savedRingSizes);
         setSlugTouched(isEdit);
         setSlugLocked(isEdit);
         setError('');
@@ -234,15 +424,59 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
     });
   };
 
-  /* ---------- field handlers ---------- */
+  /* ---------- field & image handlers ---------- */
 
   const changeTitle = (title: string) => {
     setValues((v) => ({ ...v, title, slug: slugTouched ? v.slug : slugify(title) }));
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    setError('');
+    setMessage('');
+    setUploadingPhotos(true);
+    const problems: string[] = [];
+    const added: PageImage[] = [];
+
+    for (const file of files) {
+      if (values.images.length + added.length >= MAX_PAGE_IMAGES) {
+        problems.push(`Maximum ${MAX_PAGE_IMAGES} images per page.`);
+        break;
+      }
+      try {
+        const uploaded = await uploadAdminImage(file, 'pages');
+        added.push({ url: uploaded.url, caption: '' });
+      } catch (err: unknown) {
+        problems.push(`${file.name}: ${err instanceof Error ? err.message : 'Upload failed.'}`);
+      }
+    }
+
+    if (added.length > 0) {
+      setValues((v) => ({ ...v, images: [...v.images, ...added] }));
+    }
+    if (problems.length > 0) setError(problems.join(' '));
+    setUploadingPhotos(false);
+  };
+
+  const moveImage = (index: number, delta: -1 | 1) => {
+    setValues((v) => {
+      const target = index + delta;
+      if (target < 0 || target >= v.images.length) return v;
+      const next = [...v.images];
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...v, images: next };
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setValues((v) => ({ ...v, images: v.images.filter((_, i) => i !== index) }));
+  };
+
   /* ---------- save ---------- */
 
-  const effectiveSlug = slugify(values.slug || values.title);
   const slugChanged = isEdit && effectiveSlug !== activeSlug;
   const footerLabel = isEdit ? footerLabelFor(activeSlug) : undefined;
 
@@ -252,6 +486,23 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
     if (!normalizeBody(values.body)) return 'Body is required.';
     if (values.title.trim().length > TITLE_MAX) return `Title must be ${TITLE_MAX} characters or fewer.`;
     if (normalizeBody(values.body).length > BODY_MAX) return 'Body must be 20,000 characters or fewer.';
+    if (isSizeGuideEditor) {
+      for (const [label, rows] of [
+        ['Ladies Rings', ringSizes.ladies],
+        ['Gents Rings', ringSizes.gents],
+      ] as const) {
+        if (rows.length === 0) return `Add at least one ring size row for ${label}.`;
+        const seen = new Set<string>();
+        for (const r of rows) {
+          const cleanSize = r.size.trim();
+          if (!cleanSize) return `Every row in ${label} must have a size label.`;
+          if (seen.has(cleanSize.toLowerCase())) {
+            return `Duplicate size "${cleanSize}" inside ${label}.`;
+          }
+          seen.add(cleanSize.toLowerCase());
+        }
+      }
+    }
     return '';
   };
 
@@ -261,6 +512,10 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
       title: values.title.trim(),
       body: normalizeBody(values.body),
       metaDesc: values.metaDesc.trim(),
+      images: values.images.map((img) => ({
+        url: img.url.trim(),
+        caption: (img.caption || '').trim(),
+      })),
     };
 
     setSaving(true);
@@ -273,6 +528,37 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'The page could not be saved.');
+
+      if (isSizeGuideEditor && sizesDirty) {
+        const cleanedSizes: RingSizesConfig = {
+          ladies: ringSizes.ladies.map((r) => ({
+            size: r.size.trim(),
+            diameterMm: Number(r.diameterMm),
+            circumferenceMm: Number(r.circumferenceMm),
+            note: (r.note || '').trim(),
+          })),
+          gents: ringSizes.gents.map((r) => ({
+            size: r.size.trim(),
+            diameterMm: Number(r.diameterMm),
+            circumferenceMm: Number(r.circumferenceMm),
+            note: (r.note || '').trim(),
+          })),
+          fitTip: ringSizes.fitTip.trim(),
+        };
+
+        const settingsRes = await fetch('/api/admin/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ringSizes: cleanedSizes }),
+        });
+        const settingsData = await settingsRes.json().catch(() => ({}));
+        if (!settingsRes.ok) {
+          throw new Error(settingsData.error || 'Page saved, but ring sizes failed to save.');
+        }
+        const persistedSizes = normalizeRingSizes(settingsData.settings?.ringSizes || cleanedSizes);
+        setRingSizes(persistedSizes);
+        setSavedRingSizes(persistedSizes);
+      }
 
       const record: PageRecord = { ...payload, ...(data.page || {}) };
       setPages((current) =>
@@ -562,12 +848,160 @@ export default function PagesClient({ initialPages }: { initialPages: PageRecord
                   sentence is used.
                 </p>
               </div>
+
+              {/* Page Images */}
+              <div className="border-t border-line pt-5 space-y-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="block uppercase tracking-wider font-semibold text-ink">
+                    Guide Photos ({values.images.length}/{MAX_PAGE_IMAGES})
+                  </span>
+                  <span className="text-xs text-ink-2">
+                    Displayed uncropped on the page cleanly
+                  </span>
+                </div>
+
+                {values.images.length > 0 && (
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {values.images.map((img, idx) => (
+                      <li key={`${img.url}-${idx}`} className="border border-line bg-ground p-3 space-y-2.5">
+                        <div className="relative aspect-[4/3] w-full bg-white border border-line overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={img.url}
+                            alt={img.caption || `Page visual ${idx + 1}`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`pg-img-cap-${idx}`}
+                            className="block text-xs uppercase tracking-wider text-ink-2 mb-1"
+                          >
+                            Caption (optional)
+                          </label>
+                          <input
+                            id={`pg-img-cap-${idx}`}
+                            type="text"
+                            maxLength={140}
+                            value={img.caption || ''}
+                            onChange={(e) => {
+                              const nextCaption = e.target.value;
+                              setValues((v) => ({
+                                ...v,
+                                images: v.images.map((item, i) =>
+                                  i === idx ? { ...item, caption: nextCaption } : item
+                                ),
+                              }));
+                            }}
+                            placeholder="e.g. How to measure ring diameter"
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => moveImage(idx, -1)}
+                              disabled={idx === 0}
+                              aria-label={`Move photo ${idx + 1} left`}
+                              className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
+                            >
+                              ←
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveImage(idx, 1)}
+                              disabled={idx === values.images.length - 1}
+                              aria-label={`Move photo ${idx + 1} right`}
+                              className="min-w-[44px] min-h-[44px] border border-line bg-white hover:border-ink disabled:opacity-30"
+                            >
+                              →
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeImage(idx)}
+                            className="min-h-[44px] px-2 text-red-700 hover:text-red-900 underline font-semibold uppercase"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    htmlFor="pg-photo-upload"
+                    className={`inline-flex items-center justify-center min-h-[44px] px-4 border border-ink text-ink uppercase tracking-wider font-semibold cursor-pointer hover:bg-ground ${
+                      uploadingPhotos || values.images.length >= MAX_PAGE_IMAGES
+                        ? 'opacity-40 pointer-events-none'
+                        : ''
+                    }`}
+                  >
+                    {uploadingPhotos ? 'Uploading...' : 'Upload Guide Photos'}
+                  </label>
+                  <input
+                    id="pg-photo-upload"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={uploadingPhotos || values.images.length >= MAX_PAGE_IMAGES}
+                    onChange={handlePhotoUpload}
+                    className="sr-only"
+                  />
+                </div>
+              </div>
+
+              {/* Ladies & Gents Ring Size Presets when editing Size Guide */}
+              {isSizeGuideEditor && (
+                <div className="border-t border-line pt-5 space-y-4">
+                  <div>
+                    <h3 className="font-display text-lg font-medium text-ink">
+                      Saved Ring Sizes (Ladies &amp; Gents)
+                    </h3>
+                    <p className="text-xs text-ink-2 mt-0.5">
+                      Shown on <span className="font-mono text-ink">/pages/size-guide</span>, inside the
+                      product Size Guide popup, and as presets when creating Ladies or Gents rings.
+                    </p>
+                  </div>
+
+                  <RingSizeTableEditor
+                    heading="Ladies Rings Sizing"
+                    groupKey="ladies"
+                    rows={ringSizes.ladies}
+                    onChange={(ladies) => setRingSizes((s) => ({ ...s, ladies }))}
+                  />
+
+                  <RingSizeTableEditor
+                    heading="Gents Rings Sizing"
+                    groupKey="gents"
+                    rows={ringSizes.gents}
+                    onChange={(gents) => setRingSizes((s) => ({ ...s, gents }))}
+                  />
+
+                  <div>
+                    <label htmlFor="pg-size-tip" className={labelClass}>
+                      Sizing Fit Tip
+                    </label>
+                    <input
+                      id="pg-size-tip"
+                      type="text"
+                      maxLength={RING_SIZE_LIMITS.fitTipMax}
+                      value={ringSizes.fitTip}
+                      onChange={(e) => setRingSizes((s) => ({ ...s, fitTip: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 pt-5 border-t border-line flex flex-col sm:flex-row sm:items-center gap-3">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || uploadingPhotos}
                 className="bg-ink text-white px-8 min-h-[44px] py-3 uppercase tracking-wider text-xs font-semibold hover:bg-neutral-800 disabled:opacity-40 transition"
               >
                 {saving ? 'Saving...' : isNew ? 'Create page' : 'Save changes'}

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { connectDB } from '@/lib/db';
 import { requireAdminPage } from '@/lib/admin-auth';
 import { loadCategories } from '@/lib/categories';
+import { loadSettings } from '@/lib/settings';
 import { Product } from '@/lib/models/Product';
 import { productLookup, readDeltaMap } from '@/lib/product-write';
 import ProductForm, { type ProductFormValues } from '@/components/admin/ProductForm';
@@ -16,9 +17,10 @@ const STATUSES = ['active', 'draft', 'archived'];
 export default async function AdminEditProductPage({ params }: { params: { id: string } }) {
   await requireAdminPage();
   await connectDB();
-  const [product, categories] = await Promise.all([
+  const [product, categories, settings] = await Promise.all([
     Product.findOne(productLookup(params.id)).lean() as Promise<ProductRecord | null>,
     loadCategories(true),
+    loadSettings(),
   ]);
 
   if (!product) {
@@ -87,6 +89,7 @@ export default async function AdminEditProductPage({ params }: { params: { id: s
             name: c.name,
             defaultKind: c.defaultKind,
           }))}
+        ringSizes={settings.ringSizes}
       />
     </div>
   );

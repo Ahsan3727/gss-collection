@@ -53,7 +53,7 @@ export async function shrinkImage(file: File): Promise<File> {
  */
 export async function uploadAdminImage(
   file: File,
-  folder: 'products' | 'hero' = 'products'
+  folder: 'products' | 'hero' | 'pages' = 'products'
 ): Promise<{ url: string; publicId?: string }> {
   if (!file.type.startsWith('image/')) {
     throw new Error(`${file.name} is not an image.`);

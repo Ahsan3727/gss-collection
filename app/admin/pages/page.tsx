@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { requireAdminPage } from '@/lib/admin-auth';
 import { Page } from '@/lib/models/Page';
+import { DEFAULT_RING_SIZES, loadSettings } from '@/lib/settings';
 import PagesClient from '@/components/admin/PagesClient';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +9,10 @@ export const dynamic = 'force-dynamic';
 export default async function AdminPagesPage() {
   await requireAdminPage();
   await connectDB();
-  const pages = await Page.find().sort({ title: 1 }).lean();
+  const [pages, settings] = await Promise.all([
+    Page.find().sort({ title: 1 }).lean(),
+    loadSettings(),
+  ]);
 
   return (
     <div className="max-w-site mx-auto px-4 md:px-6 py-10">
@@ -21,7 +25,10 @@ export default async function AdminPagesPage() {
         </div>
       </div>
 
-      <PagesClient initialPages={JSON.parse(JSON.stringify(pages))} />
+      <PagesClient
+        initialPages={JSON.parse(JSON.stringify(pages))}
+        initialRingSizes={JSON.parse(JSON.stringify(settings.ringSizes || DEFAULT_RING_SIZES))}
+      />
     </div>
   );
 }

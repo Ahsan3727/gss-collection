@@ -5,8 +5,8 @@ import { connectDB } from '@/lib/db';
 import { Settings } from '@/lib/models/Settings';
 import { requireAdminApi } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/models/AuditLog';
-import { DEFAULT_HERO } from '@/lib/settings';
-import { HeroSettingsSchema } from '@/lib/types';
+import { DEFAULT_HERO, DEFAULT_RING_SIZES } from '@/lib/settings';
+import { HeroSettingsSchema, RingSizesConfigSchema } from '@/lib/types';
 import { parseJsonBody } from '@/lib/http';
 import { clientIpFromRequest } from '@/lib/ratelimit';
 
@@ -17,6 +17,7 @@ const settingsPatchSchema = z.object({
   moderateReviews: z.boolean().optional(),
   announcements: z.array(z.string().max(240)).max(10).optional(),
   hero: HeroSettingsSchema.optional(),
+  ringSizes: RingSizesConfigSchema.optional(),
   contact: z
     .object({
       email: z.string().max(160).optional(),
@@ -89,6 +90,13 @@ export async function PATCH(req: Request) {
         ...body.hero,
       };
     }
+    if (body.ringSizes) {
+      settings.ringSizes = {
+        ladies: body.ringSizes.ladies,
+        gents: body.ringSizes.gents,
+        fitTip: body.ringSizes.fitTip ?? DEFAULT_RING_SIZES.fitTip,
+      };
+    }
 
     await settings.save();
     await logAdminAction(
@@ -102,6 +110,8 @@ export async function PATCH(req: Request) {
 
     revalidateTag('settings');
     revalidatePath('/');
+    revalidatePath('/pages/size-guide');
+    revalidatePath('/products', 'layout');
 
     return NextResponse.json({ success: true, settings: JSON.parse(JSON.stringify(settings)) });
   } catch (err: unknown) {

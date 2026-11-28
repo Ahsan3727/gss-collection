@@ -50,7 +50,12 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const requestedFolder = String(formData.get('folder') || 'products');
-    const folder = requestedFolder === 'hero' ? 'gss/hero' : 'gss/products';
+    const folder =
+      requestedFolder === 'hero'
+        ? 'gss/hero'
+        : requestedFolder === 'pages'
+          ? 'gss/pages'
+          : 'gss/products';
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });

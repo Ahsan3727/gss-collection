@@ -29,9 +29,24 @@ export interface ISettings extends Document {
     imageAlt?: string;
     linkHref?: string;
   };
+  ringSizes?: {
+    ladies: { size: string; diameterMm: number; circumferenceMm: number; note?: string }[];
+    gents: { size: string; diameterMm: number; circumferenceMm: number; note?: string }[];
+    fitTip: string;
+  };
   spotlightId?: string;
   moderateReviews: boolean;
 }
+
+const RingSizeRowSchema = new Schema(
+  {
+    size: { type: String, required: true, trim: true },
+    diameterMm: { type: Number, required: true },
+    circumferenceMm: { type: Number, required: true },
+    note: { type: String, default: '', trim: true },
+  },
+  { _id: false }
+);
 
 const SettingsSchema = new Schema<ISettings>(
   {
@@ -99,6 +114,33 @@ const SettingsSchema = new Schema<ISettings>(
       imageUrl: { type: String, default: '' },
       imageAlt: { type: String, default: '' },
       linkHref: { type: String, default: '/collections/all' },
+    },
+    ringSizes: {
+      ladies: {
+        type: [RingSizeRowSchema],
+        default: [
+          { size: '5', diameterMm: 15.7, circumferenceMm: 49.3, note: '' },
+          { size: '6', diameterMm: 16.5, circumferenceMm: 51.8, note: '' },
+          { size: '7', diameterMm: 17.3, circumferenceMm: 54.4, note: '' },
+          { size: '8', diameterMm: 18.1, circumferenceMm: 56.9, note: '' },
+          { size: '9', diameterMm: 18.9, circumferenceMm: 59.5, note: '' },
+        ],
+      },
+      gents: {
+        type: [RingSizeRowSchema],
+        default: [
+          { size: '7', diameterMm: 17.3, circumferenceMm: 54.4, note: '' },
+          { size: '8', diameterMm: 18.1, circumferenceMm: 56.9, note: '' },
+          { size: '9', diameterMm: 18.9, circumferenceMm: 59.5, note: '' },
+          { size: '10', diameterMm: 19.8, circumferenceMm: 62.1, note: '' },
+          { size: '11', diameterMm: 20.6, circumferenceMm: 64.6, note: '' },
+          { size: '12', diameterMm: 21.4, circumferenceMm: 67.2, note: '' },
+        ],
+      },
+      fitTip: {
+        type: String,
+        default: 'If you fall between sizes, we recommend selecting the larger size for wider bands.',
+      },
     },
     spotlightId: { type: String, default: 'p01' },
     moderateReviews: { type: Boolean, default: false },

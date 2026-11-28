@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import ProductDetailClient from '@/components/store/ProductDetailClient';
 import ProductGrid from '@/components/store/ProductGrid';
-import { getApprovedReviews, getProductByHandle, getRelatedProducts } from '@/lib/catalogue';
+import { getApprovedReviews, getProductByHandle, getRelatedProducts, getStaticPageBySlug } from '@/lib/catalogue';
 import { getCategoryBySlug } from '@/lib/categories';
 import { getStoreSettings } from '@/lib/settings';
 import { getSiteUrl } from '@/lib/env';
@@ -65,11 +65,13 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  const [related, reviews, settings, category] = await Promise.all([
+  const isRing = product.kind === 'ring' || (!product.kind && product.cat !== 'gems');
+  const [related, reviews, settings, category, sizeGuidePage] = await Promise.all([
     getRelatedProducts(product.cat, product.handle),
     getApprovedReviews(product.id || product.handle),
     getStoreSettings(),
     getCategoryBySlug(product.cat),
+    isRing ? getStaticPageBySlug('size-guide') : Promise.resolve(null),
   ]);
   const categoryName =
     category?.name || product.cat.charAt(0).toUpperCase() + product.cat.slice(1);
@@ -181,6 +183,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         product={product}
         whatsappPhone={settings.contact.phone}
         siteUrl={siteUrl}
+        ringSizes={settings.ringSizes}
+        sizeGuideImages={sizeGuidePage?.images}
       />
 
       <ProductReviews

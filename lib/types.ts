@@ -156,18 +156,101 @@ export const HERO_LIMITS = {
   linkHrefMax: 160,
 } as const;
 
-export function isSafeHeroImageUrl(url: string): boolean {
+export function isSafeStoreImageUrl(url: string): boolean {
   const trimmed = url.trim();
   if (trimmed === '') return true;
   if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
   return trimmed.startsWith('https://res.cloudinary.com/');
 }
 
+export const isSafeHeroImageUrl = isSafeStoreImageUrl;
+
 export function isSafeHeroLinkHref(href: string): boolean {
   const trimmed = href.trim();
   if (trimmed === '') return true;
   return trimmed.startsWith('/') && !trimmed.startsWith('//');
 }
+
+export const PageImageSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .min(1, 'Image URL is required')
+    .max(500)
+    .refine((val) => isSafeStoreImageUrl(val) && val !== '', 'Page images must use Cloudinary or a local / path'),
+  caption: z.string().trim().max(140).optional(),
+});
+
+export type PageImage = z.infer<typeof PageImageSchema>;
+
+export const RING_SIZE_LIMITS = {
+  sizeMax: 16,
+  noteMax: 80,
+  fitTipMax: 300,
+  maxEntriesPerChart: 20,
+} as const;
+
+export const RingSizeEntrySchema = z.object({
+  size: z
+    .string()
+    .trim()
+    .min(1, 'Size label is required')
+    .max(RING_SIZE_LIMITS.sizeMax, `Size label must be ${RING_SIZE_LIMITS.sizeMax} characters or fewer`)
+    .regex(/^[a-zA-Z0-9.+-]+$/, 'Size label may only contain letters, numbers, dots, + or -'),
+  diameterMm: z.number().min(5, 'Diameter must be at least 5 mm').max(40, 'Diameter must be 40 mm or less'),
+  circumferenceMm: z
+    .number()
+    .min(15, 'Circumference must be at least 15 mm')
+    .max(120, 'Circumference must be 120 mm or less'),
+  note: z.string().trim().max(RING_SIZE_LIMITS.noteMax).optional(),
+});
+
+export type RingSizeEntry = z.infer<typeof RingSizeEntrySchema>;
+
+function hasUniqueSizes(entries: RingSizeEntry[]): boolean {
+  const seen = new Set<string>();
+  for (const item of entries) {
+    const key = item.size.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+export const RingSizesConfigSchema = z.object({
+  ladies: z
+    .array(RingSizeEntrySchema)
+    .min(1, 'Add at least one size for Ladies Rings')
+    .max(RING_SIZE_LIMITS.maxEntriesPerChart)
+    .refine(hasUniqueSizes, 'Ladies ring sizes must be unique'),
+  gents: z
+    .array(RingSizeEntrySchema)
+    .min(1, 'Add at least one size for Gents Rings')
+    .max(RING_SIZE_LIMITS.maxEntriesPerChart)
+    .refine(hasUniqueSizes, 'Gents ring sizes must be unique'),
+  fitTip: z.string().trim().max(RING_SIZE_LIMITS.fitTipMax),
+});
+
+export type RingSizesConfig = z.infer<typeof RingSizesConfigSchema>;
+
+export const DEFAULT_RING_SIZES: RingSizesConfig = {
+  ladies: [
+    { size: '5', diameterMm: 15.7, circumferenceMm: 49.3, note: '' },
+    { size: '6', diameterMm: 16.5, circumferenceMm: 51.8, note: '' },
+    { size: '7', diameterMm: 17.3, circumferenceMm: 54.4, note: '' },
+    { size: '8', diameterMm: 18.1, circumferenceMm: 56.9, note: '' },
+    { size: '9', diameterMm: 18.9, circumferenceMm: 59.5, note: '' },
+  ],
+  gents: [
+    { size: '7', diameterMm: 17.3, circumferenceMm: 54.4, note: '' },
+    { size: '8', diameterMm: 18.1, circumferenceMm: 56.9, note: '' },
+    { size: '9', diameterMm: 18.9, circumferenceMm: 59.5, note: '' },
+    { size: '10', diameterMm: 19.8, circumferenceMm: 62.1, note: '' },
+    { size: '11', diameterMm: 20.6, circumferenceMm: 64.6, note: '' },
+    { size: '12', diameterMm: 21.4, circumferenceMm: 67.2, note: '' },
+  ],
+  fitTip: 'If you fall between sizes, we recommend selecting the larger size for wider bands.',
+};
 
 export const HeroSettingsSchema = z.object({
   eyebrow: z.string().trim().max(HERO_LIMITS.eyebrowMax),
@@ -228,6 +311,7 @@ export const StoreSettingsSchema = z.object({
     accountNumber: z.string(),
   }),
   hero: HeroSettingsSchema.optional(),
+  ringSizes: RingSizesConfigSchema.optional(),
   spotlightId: z.string().optional(),
   moderateReviews: z.boolean(),
 });
@@ -285,6 +369,7 @@ export interface PageRecord {
   title: string;
   body: string;
   metaDesc?: string;
+  images?: PageImage[];
   updatedAt?: string;
 }
 

@@ -10,7 +10,7 @@ import { formatMoney } from '@/lib/money';
 import { useCart } from '@/lib/cart-context';
 import { productStoneDelta, resolveVariantSelection } from '@/lib/pricing';
 import { whatsappLink } from '@/lib/contact';
-import type { ProductRecord } from '@/lib/types';
+import type { PageImage, ProductRecord, RingSizesConfig } from '@/lib/types';
 
 const SizeGuideModal = dynamic(() => import('./SizeGuideModal'), {
   ssr: false,
@@ -20,12 +20,16 @@ export interface ProductDetailClientProps {
   product: ProductRecord;
   whatsappPhone: string;
   siteUrl: string;
+  ringSizes?: RingSizesConfig;
+  sizeGuideImages?: PageImage[];
 }
 
 export default function ProductDetailClient({
   product,
   whatsappPhone,
   siteUrl,
+  ringSizes,
+  sizeGuideImages,
 }: ProductDetailClientProps) {
   const router = useRouter();
   const { addItem } = useCart();
@@ -522,7 +526,13 @@ export default function ProductDetailClient({
         </div>
       )}
 
-      <SizeGuideModal open={showSizeModal} onOpenChange={setShowSizeModal} />
+      <SizeGuideModal
+        open={showSizeModal}
+        onOpenChange={setShowSizeModal}
+        ringSizes={ringSizes}
+        guideImages={sizeGuideImages}
+        defaultAudience={product.cat === 'gents' || product.aud === 'men' ? 'gents' : 'ladies'}
+      />
     </>
   );
 }

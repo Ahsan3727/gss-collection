@@ -11,7 +11,15 @@ import { getSiteUrl } from '@/lib/env';
 import { selectMoreCollagePhotos } from '@/lib/catalogue';
 import { shrinkImage, uploadAdminImage } from '@/lib/client-image';
 import { parseCategoryWrite } from '@/lib/category-write';
-import { getCategoryHref, HeroSettingsSchema, isSafeHeroImageUrl, isSafeHeroLinkHref } from '@/lib/types';
+import { parsePageWrite } from '@/lib/page-write';
+import {
+  DEFAULT_RING_SIZES,
+  getCategoryHref,
+  HeroSettingsSchema,
+  isSafeHeroImageUrl,
+  isSafeHeroLinkHref,
+  RingSizesConfigSchema,
+} from '@/lib/types';
 
 describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => {
   it('formats PKR currency consistently', () => {
@@ -246,5 +254,38 @@ describe('utility helpers (money, vitals, cart cookies, roles, useSave)', () => 
       expect(validPageCat.data.targetType).toBe('page');
       expect(validPageCat.data.showOnHome).toBe(false);
     }
+  });
+
+  it('validates page images and unique Ladies/Gents ring size charts cleanly', () => {
+    const badPageImg = parsePageWrite({
+      slug: 'size-guide',
+      title: 'Size Guide',
+      body: 'Measure finger circumference.',
+      images: [{ url: 'https://untrusted.example.com/chart.png', caption: 'Chart' }],
+    });
+    expect('error' in badPageImg).toBe(true);
+
+    const goodPageImg = parsePageWrite({
+      slug: 'size-guide',
+      title: 'Size Guide',
+      body: 'Measure finger circumference.',
+      images: [{ url: 'https://res.cloudinary.com/demo/image/upload/v1/chart.jpg', caption: 'Diameter' }],
+    });
+    expect('data' in goodPageImg).toBe(true);
+    if ('data' in goodPageImg) {
+      expect(goodPageImg.data.images).toEqual([
+        { url: 'https://res.cloudinary.com/demo/image/upload/v1/chart.jpg', caption: 'Diameter' },
+      ]);
+    }
+
+    expect(RingSizesConfigSchema.safeParse(DEFAULT_RING_SIZES).success).toBe(true);
+    const dupLadies = RingSizesConfigSchema.safeParse({
+      ...DEFAULT_RING_SIZES,
+      ladies: [
+        { size: '7', diameterMm: 17.3, circumferenceMm: 54.4 },
+        { size: '7', diameterMm: 17.4, circumferenceMm: 54.7 },
+      ],
+    });
+    expect(dupLadies.success).toBe(false);
   });
 });

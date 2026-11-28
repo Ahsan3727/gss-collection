@@ -7,6 +7,7 @@ import { STONES, SIZE_MM } from '@/lib/constants';
 import { formatMoney } from '@/lib/money';
 import { uploadAdminImage } from '@/lib/client-image';
 import ConfirmDialog from '@/components/admin/ConfirmDialog';
+import { DEFAULT_RING_SIZES, type RingSizesConfig } from '@/lib/types';
 
 // Do not import from '@/lib/product-write' here: it pulls mongoose into the browser bundle.
 // The rules below mirror parseProductWrite(), which stays the final authority on the server.
@@ -48,6 +49,8 @@ interface ProductFormProps {
   categories?: ProductCategoryOption[];
   /** Optional initial category slug when launched via /admin/categories. */
   initialCat?: string;
+  /** Admin-saved ring size presets for Ladies & Gents rings. */
+  ringSizes?: RingSizesConfig;
 }
 
 const FALLBACK_CATEGORIES: ProductCategoryOption[] = [
@@ -69,7 +72,7 @@ const STATUS_OPTIONS: { value: Status; label: string; hint: string }[] = [
 ];
 
 const RING_SIZES = Object.keys(SIZE_MM);
-const DEFAULT_RING_SIZES = ['5', '6', '7'];
+const FALLBACK_RING_PRESET = ['5', '6', '7'];
 const FIXED_SIZE: Record<Exclude<Kind, 'ring'>, string> = { bracelet: 'adj', stone: 'one' };
 const KNOWN_STONES = Object.keys(STONES);
 
@@ -79,15 +82,20 @@ const inputClass =
 const cardClass = 'bg-white border border-line p-6 shadow-sm';
 const cardTitleClass = 'font-display text-xl font-normal text-ink mb-4 pb-2 border-b border-line';
 
-function blankValues(categoryOptions: ProductCategoryOption[], initialCat?: string): ProductFormValues {
+function blankValues(
+  categoryOptions: ProductCategoryOption[],
+  initialCat: string | undefined,
+  presetSizesForCat: (catSlug: string) => string[]
+): ProductFormValues {
   const matched =
     (initialCat && categoryOptions.find((c) => c.slug === initialCat)) || categoryOptions[0];
+  const catSlug = matched?.slug || 'ladies';
   const kind: Kind = matched?.defaultKind || 'ring';
-  const sizes = kind === 'ring' ? [...DEFAULT_RING_SIZES] : [FIXED_SIZE[kind]];
+  const sizes = kind === 'ring' ? presetSizesForCat(catSlug) : [FIXED_SIZE[kind]];
   return {
     title: '',
     handle: '',
-    cat: matched?.slug || 'ladies',
+    cat: catSlug,
     kind,
     desc: '',
     base: '',
@@ -124,12 +132,14 @@ function stoneName(stone: string) {
   return STONES[stone]?.name ?? stone.charAt(0).toUpperCase() + stone.slice(1);
 }
 
-function sortSizes(sizes: string[]) {
+function sortSizes(sizes: string[], knownOrder: string[]) {
   const rank = (size: string) => {
-    const at = RING_SIZES.indexOf(size);
-    return at === -1 ? RING_SIZES.length : at;
+    const num = Number(size);
+    if (Number.isFinite(num) && size.trim() !== '') return num;
+    const at = knownOrder.indexOf(size);
+    return 1000 + (at === -1 ? knownOrder.length : at);
   };
-  return [...sizes].sort((a, b) => rank(a) - rank(b));
+  return [...sizes].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
 }
 
 export default function ProductForm({
@@ -139,9 +149,29 @@ export default function ProductForm({
   stoneDeltas = {},
   categories,
   initialCat,
+  ringSizes,
 }: ProductFormProps) {
   const router = useRouter();
   const isEdit = mode === 'edit';
+
+  const savedLadiesSizes = useMemo(
+    () => (ringSizes?.ladies?.length ? ringSizes.ladies : DEFAULT_RING_SIZES.ladies).map((r) => r.size),
+    [ringSizes]
+  );
+  const savedGentsSizes = useMemo(
+    () => (ringSizes?.gents?.length ? ringSizes.gents : DEFAULT_RING_SIZES.gents).map((r) => r.size),
+    [ringSizes]
+  );
+
+  const presetSizesForCat = useMemo(
+    () => (catSlug: string) => {
+      if (catSlug === 'gents') return [...savedGentsSizes];
+      if (catSlug === 'ladies') return [...savedLadiesSizes];
+      return [...FALLBACK_RING_PRESET];
+    },
+    [savedLadiesSizes, savedGentsSizes]
+  );
+
   const categoryOptions = useMemo(() => {
     const base = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
     if (initial?.cat && !base.some((c) => c.slug === initial.cat)) {
@@ -151,8 +181,8 @@ export default function ProductForm({
   }, [categories, initial?.cat]);
 
   const initialValues = useMemo(
-    () => initial ?? blankValues(categoryOptions, initialCat),
-    [initial, categoryOptions, initialCat]
+    () => initial ?? blankValues(categoryOptions, initialCat, presetSizesForCat),
+    [initial, categoryOptions, initialCat, presetSizesForCat]
   );
 
   const [values, setValues] = useState<ProductFormValues>(initialValues);
@@ -184,7 +214,10 @@ export default function ProductForm({
   const hasBase = Number.isFinite(baseNum) && baseNum > 0;
   const compareNum = Number(values.compareAt);
   const stoneOptions = Array.from(new Set([...KNOWN_STONES, ...values.stones]));
-  const sizeOptions = sortSizes(Array.from(new Set([...RING_SIZES, ...values.sizes])));
+  const knownSizePool = Array.from(
+    new Set([...RING_SIZES, ...savedLadiesSizes, ...savedGentsSizes, ...values.sizes])
+  );
+  const sizeOptions = sortSizes(knownSizePool, knownSizePool);
 
   const scrollTop = () => {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -208,11 +241,7 @@ export default function ProductForm({
       const chosen = categoryOptions.find((c) => c.slug === catSlug);
       const nextKind = chosen?.defaultKind ?? v.kind;
       const nextSizes =
-        nextKind === v.kind
-          ? v.sizes
-          : nextKind === 'ring'
-            ? [...DEFAULT_RING_SIZES]
-            : [FIXED_SIZE[nextKind]];
+        nextKind === 'ring' ? presetSizesForCat(catSlug) : [FIXED_SIZE[nextKind]];
       return { ...v, cat: catSlug, kind: nextKind, sizes: nextSizes };
     });
   };
@@ -220,7 +249,7 @@ export default function ProductForm({
   const changeKind = (kind: Kind) => {
     setValues((v) => {
       if (v.kind === kind) return v;
-      const sizes = kind === 'ring' ? [...DEFAULT_RING_SIZES] : [FIXED_SIZE[kind]];
+      const sizes = kind === 'ring' ? presetSizesForCat(v.cat) : [FIXED_SIZE[kind]];
       return { ...v, kind, sizes };
     });
   };
@@ -246,7 +275,10 @@ export default function ProductForm({
   const toggleSize = (size: string) => {
     setValues((v) => ({
       ...v,
-      sizes: sortSizes(v.sizes.includes(size) ? v.sizes.filter((s) => s !== size) : [...v.sizes, size]),
+      sizes: sortSizes(
+        v.sizes.includes(size) ? v.sizes.filter((s) => s !== size) : [...v.sizes, size],
+        knownSizePool
+      ),
     }));
   };
 
@@ -847,23 +879,46 @@ export default function ProductForm({
 
           {/* Sizes */}
           <section className={cardClass}>
-            <h2 className={cardTitleClass}>Sizes *</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4 pb-2 border-b border-line">
+              <h2 className="font-display text-xl font-normal text-ink">Sizes *</h2>
+              <Link href="/admin/pages" className="text-xs underline text-ink-2 hover:text-ink">
+                Edit Size Guide ↗
+              </Link>
+            </div>
             {values.kind === 'ring' ? (
-              <div className="flex flex-wrap gap-2">
-                {sizeOptions.map((size) => {
-                  const selected = values.sizes.includes(size);
-                  return (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => toggleSize(size)}
-                      aria-pressed={selected}
-                      className={`w-11 h-11 flex items-center justify-center ${chipClass(selected)}`}
-                    >
-                      {size}
-                    </button>
-                  );
-                })}
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setValues((v) => ({ ...v, sizes: [...savedLadiesSizes] }))}
+                    className="px-3 min-h-[44px] border border-line bg-ground text-xs uppercase tracking-wider font-semibold text-ink hover:border-ink"
+                  >
+                    Use Ladies Sizes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setValues((v) => ({ ...v, sizes: [...savedGentsSizes] }))}
+                    className="px-3 min-h-[44px] border border-line bg-ground text-xs uppercase tracking-wider font-semibold text-ink hover:border-ink"
+                  >
+                    Use Gents Sizes
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sizeOptions.map((size) => {
+                    const selected = values.sizes.includes(size);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => toggleSize(size)}
+                        aria-pressed={selected}
+                        className={`min-w-[44px] min-h-[44px] px-2 flex items-center justify-center ${chipClass(selected)}`}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <p className="text-ink-2">
