@@ -72,9 +72,13 @@ test.describe('GSS Collection Mobile Storefront & Admin E2E', () => {
     await expect(moreTile).toBeVisible();
     await moreTile.click();
     await expect(page).toHaveURL(/\/collections\/ladies/);
+    await expect(page.getByRole('heading', { level: 1, name: /Ladies Rings/i })).toBeVisible();
 
     await page.goto('/collections/all');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    // Filter by Garnet so Crimson Halo Ring stays on page 1 even when seed DB exceeds 12 products.
+    await page.getByRole('link', { name: 'Garnet', exact: true }).click();
+    await expect(page).toHaveURL(/\/collections\/all\?stone=garnet/);
     await page.getByRole('link', { name: /Crimson Halo Ring/i }).first().click();
 
     await expect(page).toHaveURL(/\/products\/crimson-halo-ring/);
